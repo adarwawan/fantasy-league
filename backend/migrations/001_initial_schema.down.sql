@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS player_gw_stats;
+DROP TABLE IF EXISTS manager_picks;
+DROP TABLE IF EXISTS managers;
+DROP TABLE IF EXISTS fixtures;
+DROP TABLE IF EXISTS players;
+DROP TABLE IF EXISTS teams;
