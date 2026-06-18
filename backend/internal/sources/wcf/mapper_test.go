@@ -315,6 +315,54 @@ func TestPlayerName(t *testing.T) {
 	}
 }
 
+func TestMapFixtures_scoresFinished(t *testing.T) {
+	home, away := 3, 0
+	rounds := []wcfRound{
+		{
+			ID: 5,
+			Tournaments: []wcfTournament{
+				{ID: 10, HomeSquadID: 1, AwaySquadID: 2, Status: "complete", HomeScore: &home, AwayScore: &away},
+			},
+		},
+	}
+	fixtures := mapFixtures(rounds)
+	if len(fixtures) != 1 {
+		t.Fatalf("expected 1, got %d", len(fixtures))
+	}
+	f := fixtures[0]
+	if !f.Finished {
+		t.Error("expected Finished=true")
+	}
+	if f.HomeScore == nil || *f.HomeScore != 3 {
+		t.Errorf("expected HomeScore=3, got %v", f.HomeScore)
+	}
+	if f.AwayScore == nil || *f.AwayScore != 0 {
+		t.Errorf("expected AwayScore=0, got %v", f.AwayScore)
+	}
+}
+
+func TestMapFixtures_scoresNilWhenUnfinished(t *testing.T) {
+	rounds := []wcfRound{
+		{
+			ID: 6,
+			Tournaments: []wcfTournament{
+				{ID: 11, HomeSquadID: 3, AwaySquadID: 4, Status: "scheduled", HomeScore: nil, AwayScore: nil},
+			},
+		},
+	}
+	fixtures := mapFixtures(rounds)
+	if len(fixtures) != 1 {
+		t.Fatalf("expected 1, got %d", len(fixtures))
+	}
+	f := fixtures[0]
+	if f.HomeScore != nil {
+		t.Errorf("expected HomeScore=nil for unfinished, got %v", f.HomeScore)
+	}
+	if f.AwayScore != nil {
+		t.Errorf("expected AwayScore=nil for unfinished, got %v", f.AwayScore)
+	}
+}
+
 func TestMapTeams_updatedAt(t *testing.T) {
 	before := time.Now().UTC().Add(-time.Second)
 	teams := mapTeams([]wcfSquad{{ID: 1, Name: "X", Abbr: "X"}})

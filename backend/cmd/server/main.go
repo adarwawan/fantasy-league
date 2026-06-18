@@ -48,7 +48,7 @@ func main() {
 		sources = append(sources, wcfsrc.NewSource(cfg.FPLTopNDefault, cfg.WCFAuthToken))
 	}
 
-	syncer := syncsvc.New(sources, pg, cache, cfg.FPLTopNDefault)
+	syncer := syncsvc.New(sources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
 
 	// Scheduler
 	scheduler, err := gocron.NewScheduler()

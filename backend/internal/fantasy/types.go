@@ -42,6 +42,8 @@ type Fixture struct {
 	AwayDifficulty int
 	KickoffTime    time.Time
 	Finished       bool
+	HomeScore      *int
+	AwayScore      *int
 }
 
 type Manager struct {

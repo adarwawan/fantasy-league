@@ -96,6 +96,8 @@ func mapFixtures(rounds []wcfRound) []fantasy.Fixture {
 				AwayDifficulty: 3,
 				KickoffTime:    kickoff,
 				Finished:       finished,
+				HomeScore:      t.HomeScore,
+				AwayScore:      t.AwayScore,
 			})
 		}
 	}

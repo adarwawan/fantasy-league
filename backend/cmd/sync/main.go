@@ -31,6 +31,6 @@ func main() {
 		sources = append(sources, fplsrc.NewSource(cfg.FPLLeagueID, cfg.FPLTopNDefault))
 	}
 
-	syncer := syncsvc.New(sources, pg, cache, cfg.FPLTopNDefault)
+	syncer := syncsvc.New(sources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
 	syncer.RunAll(ctx)
 }

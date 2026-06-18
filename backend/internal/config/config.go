@@ -24,6 +24,8 @@ type Config struct {
 	UCLFSyncEnabled bool
 	UCLFAuthToken   string
 
+	FormGWWindow int
+
 	SyncEndpointSecret string
 	CORSAllowedOrigins []string
 }
@@ -51,6 +53,8 @@ func Load() Config {
 
 		UCLFSyncEnabled: envBool("UCLF_SYNC_ENABLED", false),
 		UCLFAuthToken:   os.Getenv("UCLF_AUTH_TOKEN"),
+
+		FormGWWindow: envInt("FORM_GW_WINDOW", 3),
 
 		SyncEndpointSecret: os.Getenv("SYNC_ENDPOINT_SECRET"),
 		CORSAllowedOrigins: corsOrigins(),

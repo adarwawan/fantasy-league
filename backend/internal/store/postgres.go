@@ -94,12 +94,12 @@ func (s *Store) UpsertFixtures(ctx context.Context, fixtures []fantasy.Fixture) 
 			return fmt.Errorf("fixture %d: invalid away team id: %w", f.ExternalID, err)
 		}
 		_, err = s.db.Exec(ctx, `
-			INSERT INTO fixtures (game_id, external_id, gw, home_team_id, away_team_id, home_difficulty, away_difficulty, kickoff_time, finished)
+			INSERT INTO fixtures (game_id, external_id, gw, home_team_id, away_team_id, home_difficulty, away_difficulty, kickoff_time, finished, home_score, away_score)
 			VALUES (
 				$1, $2, $3,
 				(SELECT id FROM teams WHERE game_id = $1 AND external_id = $4),
 				(SELECT id FROM teams WHERE game_id = $1 AND external_id = $5),
-				$6, $7, $8, $9
+				$6, $7, $8, $9, $10, $11
 			)
 			ON CONFLICT (game_id, external_id) DO UPDATE SET
 				gw              = EXCLUDED.gw,
@@ -108,8 +108,10 @@ func (s *Store) UpsertFixtures(ctx context.Context, fixtures []fantasy.Fixture) 
 				home_difficulty = EXCLUDED.home_difficulty,
 				away_difficulty = EXCLUDED.away_difficulty,
 				kickoff_time    = EXCLUDED.kickoff_time,
-				finished        = EXCLUDED.finished
-		`, f.GameID, f.ExternalID, f.GW, homeExtID, awayExtID, f.HomeDifficulty, f.AwayDifficulty, f.KickoffTime, f.Finished)
+				finished        = EXCLUDED.finished,
+				home_score      = EXCLUDED.home_score,
+				away_score      = EXCLUDED.away_score
+		`, f.GameID, f.ExternalID, f.GW, homeExtID, awayExtID, f.HomeDifficulty, f.AwayDifficulty, f.KickoffTime, f.Finished, f.HomeScore, f.AwayScore)
 		if err != nil {
 			return fmt.Errorf("upsert fixture %d: %w", f.ExternalID, err)
 		}
@@ -173,6 +175,84 @@ func (s *Store) DeleteTestGame(ctx context.Context, gameID string) {
 	s.db.Exec(ctx, `DELETE FROM fixtures WHERE game_id = $1`, gameID)
 	s.db.Exec(ctx, `DELETE FROM managers WHERE game_id = $1`, gameID)
 	s.db.Exec(ctx, `DELETE FROM teams WHERE game_id = $1`, gameID)
+}
+
+// RecomputeTeamForm recalculates att_form, def_form, and ovr_form for every team
+// in a game by averaging results across the last gwWindow finished gameweeks.
+// The divisor is the count of finished fixtures (not gwWindow), so unplayed GWs
+// don't dilute the average.
+func (s *Store) RecomputeTeamForm(ctx context.Context, gameID string, gwWindow int) error {
+	_, err := s.db.Exec(ctx, `
+		WITH last_gws AS (
+			SELECT DISTINCT gw
+			FROM fixtures
+			WHERE game_id = $1
+			  AND finished = true
+			ORDER BY gw DESC
+			LIMIT $2
+		),
+		home_results AS (
+			SELECT
+				home_team_id                          AS team_id,
+				SUM(home_score)::float                AS goals_for,
+				SUM(away_score)::float                AS goals_against,
+				SUM(CASE
+					WHEN home_score > away_score THEN 3
+					WHEN home_score = away_score THEN 1
+					ELSE 0
+				END)::float                           AS points,
+				COUNT(*)::float                       AS played
+			FROM fixtures
+			WHERE game_id = $1
+			  AND finished = true
+			  AND home_score IS NOT NULL
+			  AND away_score IS NOT NULL
+			  AND gw IN (SELECT gw FROM last_gws)
+			GROUP BY home_team_id
+		),
+		away_results AS (
+			SELECT
+				away_team_id                          AS team_id,
+				SUM(away_score)::float                AS goals_for,
+				SUM(home_score)::float                AS goals_against,
+				SUM(CASE
+					WHEN away_score > home_score THEN 3
+					WHEN away_score = home_score THEN 1
+					ELSE 0
+				END)::float                           AS points,
+				COUNT(*)::float                       AS played
+			FROM fixtures
+			WHERE game_id = $1
+			  AND finished = true
+			  AND home_score IS NOT NULL
+			  AND away_score IS NOT NULL
+			  AND gw IN (SELECT gw FROM last_gws)
+			GROUP BY away_team_id
+		),
+		combined AS (
+			SELECT
+				team_id,
+				SUM(goals_for)     AS total_goals_for,
+				SUM(goals_against) AS total_goals_against,
+				SUM(points)        AS total_points,
+				SUM(played)        AS total_played
+			FROM (
+				SELECT * FROM home_results
+				UNION ALL
+				SELECT * FROM away_results
+			) r
+			GROUP BY team_id
+		)
+		UPDATE teams t
+		SET
+			att_form = ROUND((c.total_goals_for     / NULLIF(c.total_played, 0))::numeric, 2),
+			def_form = ROUND((c.total_goals_against / NULLIF(c.total_played, 0))::numeric, 2),
+			ovr_form = ROUND((c.total_points        / NULLIF(c.total_played, 0))::numeric, 2)
+		FROM combined c
+		WHERE t.id      = c.team_id
+		  AND t.game_id = $1
+	`, gameID, gwWindow)
+	return err
 }
 
 func (s *Store) RecomputeTopNOwnership(ctx context.Context, gameID string, topN int, gw int) error {
