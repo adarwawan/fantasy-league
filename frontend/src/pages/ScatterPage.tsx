@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useScatter } from '../hooks/useScatter';
 import { ScatterPlot } from '../components/scatter/ScatterPlot';
@@ -16,6 +17,10 @@ function getAxisParam(sp: URLSearchParams, key: string, fallback: AxisKey): Axis
 export function ScatterPage() {
   const { game = 'fpl' } = useParams<{ game: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    document.title = `${game.toUpperCase()} — Scatter Plot`;
+  }, [game]);
 
   const xAxis    = getAxisParam(searchParams, 'x', 'global_ownership');
   const yAxis    = getAxisParam(searchParams, 'y', 'form');

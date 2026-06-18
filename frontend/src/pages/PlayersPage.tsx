@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayers } from '../hooks/usePlayers';
 import type { PlayerQueryParams } from '../api/players';
@@ -29,6 +30,10 @@ function paramsToSearch(p: PlayerQueryParams): Record<string, string> {
 export function PlayersPage() {
   const { game = 'fpl' } = useParams<{ game: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    document.title = `${game.toUpperCase()} — Players`;
+  }, [game]);
 
   const params = paramsFromSearch(searchParams);
   const { data, isLoading, isError } = usePlayers(game, params);

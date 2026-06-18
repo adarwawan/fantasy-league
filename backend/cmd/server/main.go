@@ -16,6 +16,7 @@ import (
 	"fantasy-league/internal/fantasy"
 	"fantasy-league/internal/handler"
 	fplsrc "fantasy-league/internal/sources/fpl"
+	wcfsrc "fantasy-league/internal/sources/wcf"
 	"fantasy-league/internal/store"
 	syncsvc "fantasy-league/internal/sync"
 )
@@ -42,6 +43,9 @@ func main() {
 	var sources []fantasy.Source
 	if cfg.FPLSyncEnabled {
 		sources = append(sources, fplsrc.NewSource(cfg.FPLLeagueID, cfg.FPLTopNDefault))
+	}
+	if cfg.WCFSyncEnabled {
+		sources = append(sources, wcfsrc.NewSource(cfg.FPLTopNDefault, cfg.WCFAuthToken))
 	}
 
 	syncer := syncsvc.New(sources, pg, cache, cfg.FPLTopNDefault)
