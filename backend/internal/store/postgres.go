@@ -166,6 +166,15 @@ func (s *Store) UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) er
 	return nil
 }
 
+// DeleteTestGame removes all rows for a game_id. Only for use in tests.
+func (s *Store) DeleteTestGame(ctx context.Context, gameID string) {
+	s.db.Exec(ctx, `DELETE FROM manager_picks WHERE game_id = $1`, gameID)
+	s.db.Exec(ctx, `DELETE FROM players WHERE game_id = $1`, gameID)
+	s.db.Exec(ctx, `DELETE FROM fixtures WHERE game_id = $1`, gameID)
+	s.db.Exec(ctx, `DELETE FROM managers WHERE game_id = $1`, gameID)
+	s.db.Exec(ctx, `DELETE FROM teams WHERE game_id = $1`, gameID)
+}
+
 func (s *Store) RecomputeTopNOwnership(ctx context.Context, gameID string, topN int, gw int) error {
 	_, err := s.db.Exec(ctx, `
 		WITH top_managers AS (
