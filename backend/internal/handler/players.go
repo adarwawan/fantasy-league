@@ -86,7 +86,10 @@ func (h *PlayersHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	maxPrice, _ := strconv.ParseFloat(q.Get("max_price"), 64)
 	topN, _ := strconv.Atoi(q.Get("top_n"))
-	if topN == 0 {
+	switch topN {
+	case 1000, 10000, 100000:
+		// valid
+	default:
 		topN = 10000
 	}
 
