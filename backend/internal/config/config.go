@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -24,6 +25,7 @@ type Config struct {
 	UCLFAuthToken   string
 
 	SyncEndpointSecret string
+	CORSAllowedOrigins []string
 }
 
 func Load() Config {
@@ -51,6 +53,7 @@ func Load() Config {
 		UCLFAuthToken:   os.Getenv("UCLF_AUTH_TOKEN"),
 
 		SyncEndpointSecret: os.Getenv("SYNC_ENDPOINT_SECRET"),
+		CORSAllowedOrigins: corsOrigins(),
 	}
 }
 
@@ -64,6 +67,14 @@ func envBool(key string, def bool) bool {
 		return def
 	}
 	return b
+}
+
+func corsOrigins() []string {
+	v := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if v != "" {
+		return strings.Split(v, ",")
+	}
+	return []string{"http://localhost:5173"}
 }
 
 func envInt(key string, def int) int {
