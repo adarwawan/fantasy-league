@@ -91,6 +91,8 @@ func mapFixtures(raw []fplFixture) []fantasy.Fixture {
 			AwayDifficulty: f.TeamADifficulty,
 			KickoffTime:    kickoff,
 			Finished:       f.Finished,
+			HomeScore:      f.TeamHScore,
+			AwayScore:      f.TeamAScore,
 		})
 	}
 	return fixtures

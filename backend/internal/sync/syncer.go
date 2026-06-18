@@ -23,6 +23,7 @@ type Store interface {
 	UpsertManagers(ctx context.Context, managers []fantasy.Manager) error
 	UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) error
 	RecomputeTopNOwnership(ctx context.Context, gameID string, topN int, gw int) error
+	RecomputeTeamForm(ctx context.Context, gameID string, gwWindow int) error
 }
 
 // Cache is the subset of store.Cache used by the syncer.
@@ -31,14 +32,15 @@ type Cache interface {
 }
 
 type Syncer struct {
-	sources []fantasy.Source
-	store   Store
-	cache   Cache
-	topN    int
+	sources      []fantasy.Source
+	store        Store
+	cache        Cache
+	topN         int
+	formGWWindow int
 }
 
-func New(sources []fantasy.Source, store Store, cache Cache, topN int) *Syncer {
-	return &Syncer{sources: sources, store: store, cache: cache, topN: topN}
+func New(sources []fantasy.Source, store Store, cache Cache, topN int, formGWWindow int) *Syncer {
+	return &Syncer{sources: sources, store: store, cache: cache, topN: topN, formGWWindow: formGWWindow}
 }
 
 // RunAll syncs all registered sources in parallel.
@@ -79,6 +81,10 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 		return fmt.Errorf("UpsertFixtures: %w", err)
 	}
 	slog.Info("fixtures synced", "game", gameID, "count", len(fixtures))
+
+	if err := s.store.RecomputeTeamForm(ctx, gameID, s.formGWWindow); err != nil {
+		return fmt.Errorf("RecomputeTeamForm: %w", err)
+	}
 
 	// Players
 	players, err := src.FetchPlayers(ctx)

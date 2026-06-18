@@ -78,14 +78,16 @@ type fplEvent struct {
 }
 
 type fplFixture struct {
-	ID             int    `json:"id"`
-	Event          *int   `json:"event"`
-	TeamH          int    `json:"team_h"`
-	TeamA          int    `json:"team_a"`
-	TeamHDifficulty int   `json:"team_h_difficulty"`
-	TeamADifficulty int   `json:"team_a_difficulty"`
-	KickoffTime    string `json:"kickoff_time"`
-	Finished       bool   `json:"finished"`
+	ID              int    `json:"id"`
+	Event           *int   `json:"event"`
+	TeamH           int    `json:"team_h"`
+	TeamA           int    `json:"team_a"`
+	TeamHDifficulty int    `json:"team_h_difficulty"`
+	TeamADifficulty int    `json:"team_a_difficulty"`
+	KickoffTime     string `json:"kickoff_time"`
+	Finished        bool   `json:"finished"`
+	TeamHScore      *int   `json:"team_h_score"`
+	TeamAScore      *int   `json:"team_a_score"`
 }
 
 type leagueStandingsResponse struct {

@@ -89,6 +89,47 @@ func TestMapFixtures_skipsNullEvent(t *testing.T) {
 	}
 }
 
+func TestMapFixtures_scoresFinished(t *testing.T) {
+	gw := 29
+	homeScore := 2
+	awayScore := 1
+	raw := []fplFixture{
+		{ID: 5, Event: &gw, TeamH: 1, TeamA: 2, Finished: true, TeamHScore: &homeScore, TeamAScore: &awayScore},
+	}
+	fixtures := mapFixtures(raw)
+	if len(fixtures) != 1 {
+		t.Fatalf("expected 1, got %d", len(fixtures))
+	}
+	f := fixtures[0]
+	if !f.Finished {
+		t.Error("expected Finished=true")
+	}
+	if f.HomeScore == nil || *f.HomeScore != 2 {
+		t.Errorf("expected HomeScore=2, got %v", f.HomeScore)
+	}
+	if f.AwayScore == nil || *f.AwayScore != 1 {
+		t.Errorf("expected AwayScore=1, got %v", f.AwayScore)
+	}
+}
+
+func TestMapFixtures_scoresNilWhenUnfinished(t *testing.T) {
+	gw := 31
+	raw := []fplFixture{
+		{ID: 6, Event: &gw, TeamH: 3, TeamA: 4, Finished: false, TeamHScore: nil, TeamAScore: nil},
+	}
+	fixtures := mapFixtures(raw)
+	if len(fixtures) != 1 {
+		t.Fatalf("expected 1, got %d", len(fixtures))
+	}
+	f := fixtures[0]
+	if f.HomeScore != nil {
+		t.Errorf("expected HomeScore=nil for unfinished, got %v", f.HomeScore)
+	}
+	if f.AwayScore != nil {
+		t.Errorf("expected AwayScore=nil for unfinished, got %v", f.AwayScore)
+	}
+}
+
 func TestMapFixtures_badKickoff(t *testing.T) {
 	gw := 1
 	raw := []fplFixture{
