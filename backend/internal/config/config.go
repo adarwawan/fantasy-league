@@ -46,7 +46,7 @@ func Load() Config {
 		FPLLeagueID:        envInt("FPL_LEAGUE_ID", 314),
 		FPLTopNDefault:     envInt("FPL_TOP_N_DEFAULT", 10000),
 
-		WCFSyncEnabled: envBool("WCF_SYNC_ENABLED", false),
+		WCFSyncEnabled: envBool("WCF_SYNC_ENABLED", true),
 		WCFAuthToken:   os.Getenv("WCF_AUTH_TOKEN"),
 
 		UCLFSyncEnabled: envBool("UCLF_SYNC_ENABLED", false),

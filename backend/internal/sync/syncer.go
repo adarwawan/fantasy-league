@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"sync"
 
 	"fantasy-league/internal/fantasy"
 )
@@ -40,13 +41,19 @@ func New(sources []fantasy.Source, store Store, cache Cache, topN int) *Syncer {
 	return &Syncer{sources: sources, store: store, cache: cache, topN: topN}
 }
 
-// RunAll syncs all registered sources sequentially.
+// RunAll syncs all registered sources in parallel.
 func (s *Syncer) RunAll(ctx context.Context) {
+	var wg sync.WaitGroup
 	for _, src := range s.sources {
-		if err := s.run(ctx, src); err != nil {
-			slog.Error("sync failed", "game", src.GameID(), "err", err)
-		}
+		wg.Add(1)
+		go func(src fantasy.Source) {
+			defer wg.Done()
+			if err := s.run(ctx, src); err != nil {
+				slog.Error("sync failed", "game", src.GameID(), "err", err)
+			}
+		}(src)
 	}
+	wg.Wait()
 }
 
 func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
