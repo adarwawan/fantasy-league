@@ -75,5 +75,14 @@ func (s *Source) FetchPicks(ctx context.Context, managerID string, gw int) ([]fa
 // CurrentGW is not exposed by the WCF public API; the syncer must pass the
 // current round number explicitly via the sync orchestration layer.
 func (s *Source) CurrentGW(_ context.Context) (int, error) {
-	return 1, nil
+	rounds, err := s.client.fetchRounds(context.Background())
+	if err != nil {
+		return 0, fmt.Errorf("wcf CurrentGW: %w", err)
+	}
+	for _, r := range rounds {
+		if r.Status == "playing" {
+			return r.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("wcf CurrentGW: no round with status playing")
 }
