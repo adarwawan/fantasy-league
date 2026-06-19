@@ -59,6 +59,15 @@ resource "upstash_redis_database" "cache" {
   tls            = true
 }
 
+# --- Cloudflare Pages ---
+# The Pages project is bootstrapped manually once with:
+#   cd frontend && npm run build
+#   npx wrangler pages project create fantasy-league
+#   npx wrangler pages deploy dist --project-name=fantasy-league
+# Subsequent deploys are handled by .github/workflows/deploy-frontend.yml
+# The Cloudflare Terraform provider supports Pages resources but not the
+# build/deploy lifecycle, so managing it via IaC adds complexity with no benefit.
+
 # --- Cloudflare DNS ---
 # api_ip is populated after running: fly ips allocate-v4 --app fantasy-league-api
 variable "fly_api_ip" {
