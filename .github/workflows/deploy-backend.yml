@@ -6,6 +6,7 @@ on:
     paths:
       - backend/**
       - fly.toml
+      - .github/workflows/deploy-backend.yml
 
 jobs:
   deploy:
