@@ -5,7 +5,6 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -50,17 +49,13 @@ func main() {
 
 	syncer := syncsvc.New(sources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
 
-	// Scheduler — daily at 15:00 Singapore time (UTC+8)
-	sgt, err := time.LoadLocation("Asia/Singapore")
-	if err != nil {
-		log.Fatalf("load timezone: %v", err)
-	}
-	scheduler, err := gocron.NewScheduler(gocron.WithLocation(sgt))
+	// Scheduler — daily at 08:00 UTC
+	scheduler, err := gocron.NewScheduler()
 	if err != nil {
 		log.Fatalf("scheduler: %v", err)
 	}
 	_, err = scheduler.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(15, 0, 0))),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(8, 0, 0))),
 		gocron.NewTask(func() { syncer.RunAll(context.Background()) }),
 	)
 	if err != nil {
