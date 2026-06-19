@@ -50,14 +50,17 @@ func main() {
 
 	syncer := syncsvc.New(sources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
 
-	// Scheduler
-	scheduler, err := gocron.NewScheduler()
+	// Scheduler — daily at 15:00 Singapore time (UTC+8)
+	sgt, err := time.LoadLocation("Asia/Singapore")
+	if err != nil {
+		log.Fatalf("load timezone: %v", err)
+	}
+	scheduler, err := gocron.NewScheduler(gocron.WithLocation(sgt))
 	if err != nil {
 		log.Fatalf("scheduler: %v", err)
 	}
-	interval := time.Duration(cfg.FPLSyncIntervalMin) * time.Minute
 	_, err = scheduler.NewJob(
-		gocron.DurationJob(interval),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(15, 0, 0))),
 		gocron.NewTask(func() { syncer.RunAll(context.Background()) }),
 	)
 	if err != nil {
