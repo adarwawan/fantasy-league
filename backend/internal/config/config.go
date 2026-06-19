@@ -14,6 +14,7 @@ type Config struct {
 	Port        string
 
 	FPLSyncEnabled     bool
+	FPLSyncOnce        bool
 	FPLSyncIntervalMin int
 	FPLLeagueID        int
 	FPLTopNDefault     int
@@ -44,6 +45,7 @@ func Load() Config {
 		Port:        port,
 
 		FPLSyncEnabled:     envBool("FPL_SYNC_ENABLED", true),
+		FPLSyncOnce:        envBool("FPL_SYNC_ONCE", true),
 		FPLSyncIntervalMin: envInt("FPL_SYNC_INTERVAL_MIN", 30),
 		FPLLeagueID:        envInt("FPL_LEAGUE_ID", 314),
 		FPLTopNDefault:     envInt("FPL_TOP_N_DEFAULT", 10000),

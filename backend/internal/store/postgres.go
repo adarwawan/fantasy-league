@@ -119,6 +119,14 @@ func (s *Store) UpsertFixtures(ctx context.Context, fixtures []fantasy.Fixture) 
 	return nil
 }
 
+// ResetManagerRanks nullifies overall_rank for all managers in a game so that
+// managers who fell out of the top-N in the current sync are excluded from
+// RecomputeTopNOwnership (NULL <= N is false in SQL).
+func (s *Store) ResetManagerRanks(ctx context.Context, gameID string) error {
+	_, err := s.db.Exec(ctx, `UPDATE managers SET overall_rank = NULL WHERE game_id = $1`, gameID)
+	return err
+}
+
 func (s *Store) UpsertManagers(ctx context.Context, managers []fantasy.Manager) error {
 	for _, m := range managers {
 		_, err := s.db.Exec(ctx, `

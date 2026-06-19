@@ -20,6 +20,7 @@ type Store interface {
 	UpsertTeams(ctx context.Context, teams []fantasy.Team) error
 	UpsertFixtures(ctx context.Context, fixtures []fantasy.Fixture) error
 	UpsertPlayers(ctx context.Context, players []fantasy.Player) error
+	ResetManagerRanks(ctx context.Context, gameID string) error
 	UpsertManagers(ctx context.Context, managers []fantasy.Manager) error
 	UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) error
 	RecomputeTopNOwnership(ctx context.Context, gameID string, topN int, gw int) error
@@ -100,6 +101,9 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	managers, err := src.FetchManagers(ctx, s.topN)
 	if err != nil {
 		return fmt.Errorf("FetchManagers: %w", err)
+	}
+	if err := s.store.ResetManagerRanks(ctx, gameID); err != nil {
+		return fmt.Errorf("ResetManagerRanks: %w", err)
 	}
 	if err := s.store.UpsertManagers(ctx, managers); err != nil {
 		return fmt.Errorf("UpsertManagers: %w", err)
