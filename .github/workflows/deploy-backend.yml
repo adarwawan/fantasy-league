@@ -20,7 +20,7 @@ jobs:
         run: |
           go install -tags 'postgres' \
             github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-          migrate -path backend/migrations -database "$DATABASE_URL" up
+          $(go env GOPATH)/bin/migrate -path backend/migrations -database "$DATABASE_URL" up
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
