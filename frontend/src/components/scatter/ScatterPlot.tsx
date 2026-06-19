@@ -117,7 +117,9 @@ export function ScatterPlot({ players, xAxis, yAxis }: Props) {
               data={byPosition[pos]}
               fill={POS_COLORS[pos]}
               fillOpacity={0.75}
-              shape={({ cx, cy, payload }: { cx: number; cy: number; payload: PlotPoint }) => (
+              shape={(props: unknown) => {
+                const { cx, cy, payload } = props as { cx: number; cy: number; payload: PlotPoint };
+                return (
                 <circle
                   key={`${payload.player.id}`}
                   cx={cx}
@@ -128,7 +130,7 @@ export function ScatterPlot({ players, xAxis, yAxis }: Props) {
                   stroke="white"
                   strokeWidth={1}
                 />
-              )}
+              );}}
             />
           ))}
         </ScatterChart>
