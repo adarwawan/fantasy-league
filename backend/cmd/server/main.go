@@ -39,32 +39,39 @@ func main() {
 	}
 
 	// Sources
-	var sources []fantasy.Source
+	var startupSources, scheduledSources []fantasy.Source
 	if cfg.FPLSyncEnabled {
-		sources = append(sources, fplsrc.NewSource(cfg.FPLLeagueID, cfg.FPLTopNDefault))
+		fpl := fplsrc.NewSource(cfg.FPLLeagueID, cfg.FPLTopNDefault)
+		startupSources = append(startupSources, fpl)
+		if !cfg.FPLSyncOnce {
+			scheduledSources = append(scheduledSources, fpl)
+		}
 	}
 	if cfg.WCFSyncEnabled {
-		sources = append(sources, wcfsrc.NewSource(cfg.FPLTopNDefault, cfg.WCFAuthToken))
+		wcf := wcfsrc.NewSource(cfg.FPLTopNDefault, cfg.WCFAuthToken)
+		startupSources = append(startupSources, wcf)
+		scheduledSources = append(scheduledSources, wcf)
 	}
 
-	syncer := syncsvc.New(sources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
+	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
+	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
 
-	// Scheduler — daily at 08:00 UTC
+	// Scheduler — daily at 08:00 UTC (recurring sources only)
 	scheduler, err := gocron.NewScheduler()
 	if err != nil {
 		log.Fatalf("scheduler: %v", err)
 	}
 	_, err = scheduler.NewJob(
 		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(8, 0, 0))),
-		gocron.NewTask(func() { syncer.RunAll(context.Background()) }),
+		gocron.NewTask(func() { scheduledSyncer.RunAll(context.Background()) }),
 	)
 	if err != nil {
 		log.Fatalf("schedule job: %v", err)
 	}
 	scheduler.Start()
 
-	// Sync on startup
-	go syncer.RunAll(ctx)
+	// Sync on startup (all sources, including once-only)
+	go startupSyncer.RunAll(ctx)
 
 	// Handlers
 	playersH := handler.NewPlayersHandler(pg, cache)
@@ -97,7 +104,7 @@ func main() {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
-			go syncer.RunAll(context.Background())
+			go startupSyncer.RunAll(context.Background())
 			slog.Info("manual sync triggered", "game", chi.URLParam(r, "game"))
 			w.WriteHeader(http.StatusAccepted)
 			w.Write([]byte("sync triggered"))
