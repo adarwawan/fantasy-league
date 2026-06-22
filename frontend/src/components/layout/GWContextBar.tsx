@@ -34,17 +34,14 @@ function useCountdown(target: Date | null): string {
 }
 
 function formatCachedAt(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 export function GWContextBar({ game }: { game: string }) {
-  const { gw, cachedAt, deadline, isLoading } = useGWContext(game);
+  const { gw, deadline, cachedAt, isLoading } = useGWContext(game);
   const countdown = useCountdown(deadline);
 
   if (isLoading || gw === null) return null;
-
-  const deadlinePast = deadline && deadline.getTime() < Date.now();
 
   return (
     <div className="bg-slate-900/60 border-b border-slate-700/50 px-6 py-1.5 flex items-center gap-6 text-xs">
@@ -56,7 +53,7 @@ export function GWContextBar({ game }: { game: string }) {
       {countdown && (
         <div className="flex items-center gap-1.5">
           <span className="text-slate-500 uppercase tracking-wide font-medium">Deadline</span>
-          <span className={`font-mono font-medium ${deadlinePast ? 'text-slate-500' : countdown.includes('m') && !countdown.includes('h') && !countdown.includes('d') ? 'text-amber-400' : 'text-emerald-400'}`}>
+          <span className={`font-mono font-medium ${countdown.includes('m') && !countdown.includes('h') && !countdown.includes('d') ? 'text-amber-400' : 'text-emerald-400'}`}>
             {countdown}
           </span>
         </div>

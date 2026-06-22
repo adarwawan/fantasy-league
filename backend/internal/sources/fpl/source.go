@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"fantasy-league/internal/fantasy"
 )
@@ -80,4 +81,23 @@ func (s *Source) CurrentGW(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	return currentGW(boot.Events), nil
+}
+
+// FetchDeadline returns the current GW and the next GW's deadline time.
+func (s *Source) FetchDeadline(ctx context.Context) (int, time.Time, error) {
+	boot, err := s.client.fetchBootstrap(ctx)
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("fpl FetchDeadline: %w", err)
+	}
+	gw := currentGW(boot.Events)
+	for _, e := range boot.Events {
+		if e.IsNext && e.DeadlineTime != "" {
+			t, err := time.Parse(time.RFC3339, e.DeadlineTime)
+			if err != nil {
+				return gw, time.Time{}, fmt.Errorf("fpl FetchDeadline parse: %w", err)
+			}
+			return gw, t, nil
+		}
+	}
+	return gw, time.Time{}, nil
 }

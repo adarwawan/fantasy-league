@@ -2,12 +2,15 @@ package sync
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
 	"sync"
+	"time"
 
 	"fantasy-league/internal/fantasy"
+	"fantasy-league/internal/store"
 )
 
 // GWProvider is implemented by sources that can report the current gameweek.
@@ -27,9 +30,15 @@ type Store interface {
 	RecomputeTeamForm(ctx context.Context, gameID string, gwWindow int) error
 }
 
+// DeadlineProvider is implemented by sources that can report the next deadline.
+type DeadlineProvider interface {
+	FetchDeadline(ctx context.Context) (currentGW int, nextDeadline time.Time, err error)
+}
+
 // Cache is the subset of store.Cache used by the syncer.
 type Cache interface {
 	InvalidateGame(ctx context.Context, gameID string) error
+	Set(ctx context.Context, key string, val []byte, ttl time.Duration) error
 }
 
 type Syncer struct {
@@ -144,6 +153,24 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	// Invalidate cache
 	if err := s.cache.InvalidateGame(ctx, gameID); err != nil {
 		slog.Warn("cache invalidation failed", "game", gameID, "err", err)
+	}
+
+	// Deadline — set after invalidation so it survives the wipe.
+	if dp, ok := src.(DeadlineProvider); ok {
+		dgw, deadline, err := dp.FetchDeadline(ctx)
+		if err != nil {
+			slog.Warn("FetchDeadline failed", "game", gameID, "err", err)
+		} else {
+			type deadlinePayload struct {
+				CurrentGW    int       `json:"current_gw"`
+				NextDeadline time.Time `json:"next_deadline"`
+				CachedAt     time.Time `json:"cached_at"`
+			}
+			b, _ := json.Marshal(deadlinePayload{CurrentGW: dgw, NextDeadline: deadline, CachedAt: time.Now().UTC()})
+			if err := s.cache.Set(ctx, store.CacheKey(gameID, "deadline"), b, 0); err != nil {
+				slog.Warn("cache set deadline failed", "game", gameID, "err", err)
+			}
+		}
 	}
 
 	slog.Info("sync complete", "game", gameID)
