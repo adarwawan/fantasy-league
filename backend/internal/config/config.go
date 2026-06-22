@@ -64,7 +64,7 @@ func Load() Config {
 
 		OddsAPIKey:     os.Getenv("ODDS_API_KEY"),
 		OddsCacheTTL:   envDuration("ODDS_CACHE_TTL", 15*time.Minute),
-		WCFOddsEnabled: envBool("WCF_ODDS_ENABLED", false),
+		WCFOddsEnabled: envBool("WCF_ODDS_ENABLED", true),
 		FPLOddsEnabled: envBool("FPL_ODDS_ENABLED", false),
 
 		SyncEndpointSecret: os.Getenv("SYNC_ENDPOINT_SECRET"),
