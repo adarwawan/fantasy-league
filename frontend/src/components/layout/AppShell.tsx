@@ -2,10 +2,13 @@ import { Link, useParams, useLocation } from 'react-router-dom';
 import { GameSwitcher } from './GameSwitcher';
 import { GWContextBar } from './GWContextBar';
 
+const ODDS_ENABLED = 'true';
+
 const NAV_LINKS = [
   { to: 'players', label: 'Players' },
   { to: 'teams',   label: 'Teams'   },
   { to: 'scatter', label: 'Scatter' },
+  ...(ODDS_ENABLED ? [{ to: 'odds', label: 'Odds' }] : []),
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
