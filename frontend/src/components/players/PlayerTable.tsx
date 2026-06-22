@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-table';
 import { useState } from 'react';
 import type { Player } from '../../types/player';
+import type { Team } from '../../types/team';
 import { PlayerRow } from './PlayerRow';
 import { PlayerCard } from './PlayerCard';
 
@@ -32,10 +33,11 @@ const columns = [
 interface Props {
   players: Player[];
   topNSize: number;
+  teams?: Team[];
   onPlayerClick?: (p: Player) => void;
 }
 
-export function PlayerTable({ players, topNSize, onPlayerClick }: Props) {
+export function PlayerTable({ players, topNSize, teams, onPlayerClick }: Props) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'global_ownership', desc: true },
   ]);
@@ -78,7 +80,7 @@ export function PlayerTable({ players, topNSize, onPlayerClick }: Props) {
           </thead>
           <tbody>
             {sortedRows.map(row => (
-              <PlayerRow key={row.id} row={row} onPlayerClick={onPlayerClick} />
+              <PlayerRow key={row.id} row={row} teams={teams} onPlayerClick={onPlayerClick} />
             ))}
           </tbody>
         </table>

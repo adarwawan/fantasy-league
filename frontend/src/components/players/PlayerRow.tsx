@@ -1,5 +1,6 @@
 import type { Row } from '@tanstack/react-table';
 import type { Player } from '../../types/player';
+import type { Team } from '../../types/team';
 import { PositionBadge } from '../common/PositionBadge';
 import { FixtureChip } from './FixtureChip';
 
@@ -31,7 +32,7 @@ function OwnershipBar({ value, position, max = 80 }: { value: number; position: 
   );
 }
 
-export function PlayerRow({ row, onPlayerClick }: { row: Row<Player>; onPlayerClick?: (p: Player) => void }) {
+export function PlayerRow({ row, teams, onPlayerClick }: { row: Row<Player>; teams?: Team[]; onPlayerClick?: (p: Player) => void }) {
   const player = row.original;
   const isInjured = player.status === 'injured';
   const diff = player.top_n_ownership - player.global_ownership;
@@ -111,9 +112,10 @@ export function PlayerRow({ row, onPlayerClick }: { row: Row<Player>; onPlayerCl
       {/* Next 5 fixture chips */}
       <td className="px-3 py-2">
         <div className="flex gap-1 flex-wrap">
-          {player.fixtures.slice(0, 5).map((f, i) => (
-            <FixtureChip key={i} fixture={f} />
-          ))}
+          {player.fixtures.slice(0, 5).map((f, i) => {
+              const oppTeam = teams?.find(t => t.short_name === f.opp);
+              return <FixtureChip key={i} fixture={f} oppOvrForm={oppTeam?.ovr_form} />;
+            })}
         </div>
       </td>
     </tr>

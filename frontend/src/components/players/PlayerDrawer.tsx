@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { Player } from '../../types/player';
+import type { Team } from '../../types/team';
 import { PositionBadge } from '../common/PositionBadge';
 import { FixtureChip } from './FixtureChip';
 
@@ -11,10 +12,11 @@ const STATUS_DOT: Record<Player['status'], string> = {
 
 interface Props {
   player: Player | null;
+  teams?: Team[];
   onClose: () => void;
 }
 
-export function PlayerDrawer({ player, onClose }: Props) {
+export function PlayerDrawer({ player, teams, onClose }: Props) {
   useEffect(() => {
     if (!player) return;
     function onKey(e: KeyboardEvent) {
@@ -94,7 +96,7 @@ export function PlayerDrawer({ player, onClose }: Props) {
               <div className="flex flex-col gap-2">
                 {player.fixtures.map((f, i) => (
                   <div key={i} className="flex items-center justify-between">
-                    <FixtureChip fixture={f} />
+                    <FixtureChip fixture={f} oppOvrForm={teams?.find(t => t.short_name === f.opp)?.ovr_form} />
                     <span className="text-xs text-slate-500">{new Date(f.kickoff).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                   </div>
                 ))}
