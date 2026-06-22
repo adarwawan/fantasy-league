@@ -298,6 +298,7 @@ type MatchOddsRow struct {
 	OddsMatchID string    `json:"odds_match_id"`
 	GameID      string    `json:"game_id"`
 	FixtureID   string    `json:"fixture_id,omitempty"`
+	GW          int       `json:"gw,omitempty"` // 0 when not linked to a fixture
 	HomeTeam    string    `json:"home_team"`
 	AwayTeam    string    `json:"away_team"`
 	LambdaHome  float64   `json:"lambda_home"`
@@ -347,42 +348,73 @@ func (s *Store) UpsertMatchOdds(ctx context.Context, rows []MatchOddsRow, cache 
 	return nil
 }
 
-// QueryMatchOdds returns all match_odds rows for a game, reading from the
-// Redis cache ("{gameID}:odds:computed") and falling back to Postgres on miss.
-func (s *Store) QueryMatchOdds(ctx context.Context, gameID string, cache *Cache) ([]MatchOddsRow, error) {
+// QueryMatchOdds returns match_odds rows for a game filtered to the given
+// gameweeks. The full unfiltered set is cached in Redis under
+// "{gameID}:odds:computed"; GW filtering is applied in Go after the cache hit.
+// Pass gws=nil to return all gameweeks.
+func (s *Store) QueryMatchOdds(ctx context.Context, gameID string, gws []int, cache *Cache) ([]MatchOddsRow, error) {
+	var all []MatchOddsRow
+
 	if cache != nil {
 		if b, err := cache.Get(ctx, CacheKey(gameID, "odds:computed")); err == nil && b != nil {
-			var rows []MatchOddsRow
-			if err := json.Unmarshal(b, &rows); err == nil {
-				return rows, nil
+			if err := json.Unmarshal(b, &all); err == nil {
+				return filterByGW(all, gws), nil
 			}
 		}
 	}
 
 	pgRows, err := s.db.Query(ctx, `
-		SELECT odds_match_id, game_id, COALESCE(fixture_id::text, ''),
-		       home_team, away_team, lambda_home, lambda_away,
-		       home_cs_pct, away_cs_pct, kickoff_time, fetched_at
-		FROM match_odds
-		WHERE game_id = $1
-		ORDER BY kickoff_time
+		SELECT mo.odds_match_id, mo.game_id, COALESCE(mo.fixture_id::text, ''),
+		       COALESCE(f.gw, 0),
+		       mo.home_team, mo.away_team, mo.lambda_home, mo.lambda_away,
+		       mo.home_cs_pct, mo.away_cs_pct, mo.kickoff_time, mo.fetched_at
+		FROM match_odds mo
+		LEFT JOIN fixtures f ON f.id = mo.fixture_id
+		WHERE mo.game_id = $1
+		ORDER BY mo.kickoff_time
 	`, gameID)
 	if err != nil {
 		return nil, fmt.Errorf("query match_odds: %w", err)
 	}
 	defer pgRows.Close()
 
-	var out []MatchOddsRow
 	for pgRows.Next() {
 		var r MatchOddsRow
 		if err := pgRows.Scan(
-			&r.OddsMatchID, &r.GameID, &r.FixtureID,
+			&r.OddsMatchID, &r.GameID, &r.FixtureID, &r.GW,
 			&r.HomeTeam, &r.AwayTeam, &r.LambdaHome, &r.LambdaAway,
 			&r.HomeCSPct, &r.AwayCSPct, &r.KickoffTime, &r.FetchedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan match_odds: %w", err)
 		}
-		out = append(out, r)
+		all = append(all, r)
 	}
-	return out, pgRows.Err()
+	if err := pgRows.Err(); err != nil {
+		return nil, err
+	}
+
+	if cache != nil {
+		if b, err := json.Marshal(all); err == nil {
+			_ = cache.Set(ctx, CacheKey(gameID, "odds:computed"), b, 0)
+		}
+	}
+
+	return filterByGW(all, gws), nil
+}
+
+func filterByGW(rows []MatchOddsRow, gws []int) []MatchOddsRow {
+	if len(gws) == 0 {
+		return rows
+	}
+	set := make(map[int]bool, len(gws))
+	for _, gw := range gws {
+		set[gw] = true
+	}
+	out := rows[:0:0]
+	for _, r := range rows {
+		if set[r.GW] {
+			out = append(out, r)
+		}
+	}
+	return out
 }
