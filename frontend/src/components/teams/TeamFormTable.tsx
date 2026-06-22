@@ -99,7 +99,7 @@ export function TeamFormTable({ teams, players }: Props) {
             const team = row.original;
             const isExpanded = expanded.has(team.id);
             const teamPlayers = players
-              .filter(p => p.team.id === team.id && p.form > 0)
+              .filter(p => p.team.id === team.id && p.form > 1.5)
               .sort((a, b) => posOrder[a.position] - posOrder[b.position] || b.global_ownership - a.global_ownership);
 
             return (
@@ -130,9 +130,12 @@ export function TeamFormTable({ teams, players }: Props) {
                       return (
                         <td key={cell.id} className="px-3 py-2">
                           <div className="flex gap-1 flex-wrap">
-                            {team.fixtures.slice(0, 5).map((tf, i) => (
-                              <FixtureChip key={i} fixture={toFixture(tf)} />
-                            ))}
+                            {team.fixtures.slice(0, 5).map((tf, i) => {
+                              const oppTeam = teams.find(t => t.short_name === tf.opp);
+                              return (
+                                <FixtureChip key={i} fixture={toFixture(tf)} oppOvrForm={oppTeam?.ovr_form} />
+                              );
+                            })}
                           </div>
                         </td>
                       );

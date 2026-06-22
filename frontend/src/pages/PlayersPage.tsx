@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayers } from '../hooks/usePlayers';
+import { useTeams } from '../hooks/useTeams';
 import type { PlayerQueryParams } from '../api/players';
 import type { Player } from '../types/player';
 import { PlayerFilters } from '../components/players/PlayerFilters';
@@ -75,6 +76,7 @@ export function PlayersPage() {
 
   const params = paramsFromSearch(searchParams);
   const { data, isLoading, isError, refetch } = usePlayers(game, params);
+  const { data: teamsData } = useTeams(game);
 
   const filteredPlayers = useMemo(() => {
     if (!data) return [];
@@ -141,10 +143,11 @@ export function PlayersPage() {
         <PlayerTable
           players={filteredPlayers}
           topNSize={data.meta.top_n_size}
+          teams={teamsData?.teams}
           onPlayerClick={handlePlayerClick}
         />
       </div>
-      <PlayerDrawer player={selectedPlayer} onClose={handleDrawerClose} />
+      <PlayerDrawer player={selectedPlayer} teams={teamsData?.teams} onClose={handleDrawerClose} />
     </>
   );
 }
