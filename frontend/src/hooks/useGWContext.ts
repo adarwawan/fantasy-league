@@ -1,26 +1,20 @@
-import { useMemo } from 'react';
-import { usePlayers } from './usePlayers';
+import { useQuery } from '@tanstack/react-query';
+import { fetchDeadline } from '../api/fixtures';
 
 export function useGWContext(game: string) {
-  const { data, isLoading } = usePlayers(game, {});
+  const { data, isLoading } = useQuery({
+    queryKey: ['deadline', game],
+    queryFn: () => fetchDeadline(game),
+    retry: false,
+  });
 
-  const deadline = useMemo(() => {
-    const players = data?.players ?? [];
-    const kickoffs = players
-      .map(p => p.fixtures[0]?.kickoff)
-      .filter(Boolean)
-      .map(k => new Date(k!).getTime())
-      .filter(t => t > Date.now());
-
-    if (!kickoffs.length) return null;
-    // FPL deadline = 90 min before first match of the GW
-    return new Date(Math.min(...kickoffs) - 90 * 60 * 1000);
-  }, [data]);
+  const deadline = data?.next_deadline ? new Date(data.next_deadline) : null;
+  const isPast = deadline ? deadline.getTime() <= Date.now() : false;
 
   return {
-    gw: data?.meta.gw ?? null,
-    cachedAt: data?.meta.cached_at ?? null,
-    deadline,
+    gw: data?.current_gw ?? null,
+    deadline: isPast ? null : deadline,
+    cachedAt: data?.cached_at ?? null,
     isLoading,
   };
 }

@@ -8,3 +8,13 @@ export function fetchFixtures(game: string, fromGw?: number, toGw?: number): Pro
   const query = qs.toString();
   return apiFetch<FixturesResponse>(`/api/${game}/fixtures${query ? `?${query}` : ''}`);
 }
+
+export interface DeadlineResponse {
+  current_gw: number;
+  next_deadline: string; // ISO 8601
+  cached_at: string;     // ISO 8601
+}
+
+export function fetchDeadline(game: string): Promise<DeadlineResponse> {
+  return apiFetch<DeadlineResponse>(`/api/${game}/deadline`);
+}

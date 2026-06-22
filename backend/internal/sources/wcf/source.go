@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"fantasy-league/internal/fantasy"
 )
@@ -89,4 +90,29 @@ func (s *Source) CurrentGW(_ context.Context) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("wcf CurrentGW: no round with status playing")
+}
+
+// FetchDeadline returns the current GW and the start date of the next scheduled round.
+func (s *Source) FetchDeadline(ctx context.Context) (int, time.Time, error) {
+	rounds, err := s.client.fetchRounds(ctx)
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("wcf FetchDeadline: %w", err)
+	}
+	currentGW := 0
+	for _, r := range rounds {
+		if r.Status == "playing" {
+			currentGW = r.ID
+			break
+		}
+	}
+	for _, r := range rounds {
+		if r.Status == "scheduled" && r.StartDate != "" {
+			t, err := time.Parse(time.RFC3339, r.StartDate)
+			if err != nil {
+				return currentGW, time.Time{}, fmt.Errorf("wcf FetchDeadline parse: %w", err)
+			}
+			return currentGW, t, nil
+		}
+	}
+	return currentGW, time.Time{}, nil
 }

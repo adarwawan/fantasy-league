@@ -72,9 +72,10 @@ type fplTeam struct {
 }
 
 type fplEvent struct {
-	ID       int  `json:"id"`
-	IsCurrent bool `json:"is_current"`
-	IsNext   bool `json:"is_next"`
+	ID           int    `json:"id"`
+	IsCurrent    bool   `json:"is_current"`
+	IsNext       bool   `json:"is_next"`
+	DeadlineTime string `json:"deadline_time"`
 }
 
 type fplFixture struct {

@@ -77,6 +77,8 @@ func main() {
 	playersH := handler.NewPlayersHandler(pg, cache)
 	teamsH := handler.NewTeamsHandler(pg, cache)
 
+	deadlineH := handler.NewDeadlineHandler(cache)
+
 	// Router
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -114,6 +116,7 @@ func main() {
 		r.Get("/players", playersH.List)
 		r.Get("/teams", teamsH.List)
 		r.Get("/fixtures", teamsH.Fixtures)
+		r.Get("/deadline", deadlineH.Deadline)
 	})
 
 	log.Printf("server listening on :%s", cfg.Port)
