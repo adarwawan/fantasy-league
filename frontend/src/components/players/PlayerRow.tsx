@@ -1,5 +1,6 @@
 import type { Row } from '@tanstack/react-table';
 import type { Player } from '../../types/player';
+import { PositionBadge } from '../common/PositionBadge';
 import { FixtureChip } from './FixtureChip';
 
 const STATUS_DOT: Record<Player['status'], string> = {
@@ -8,52 +9,103 @@ const STATUS_DOT: Record<Player['status'], string> = {
   injured:   'bg-red-500',
 };
 
-export function PlayerRow({ row }: { row: Row<Player> }) {
+const POS_BAR: Record<Player['position'], string> = {
+  GK:  'bg-emerald-400',
+  DEF: 'bg-blue-400',
+  MID: 'bg-purple-400',
+  FWD: 'bg-red-400',
+};
+
+function OwnershipBar({ value, position, max = 80 }: { value: number; position: Player['position']; max?: number }) {
+  const pct = Math.min((value / max) * 100, 100);
+  return (
+    <div className="flex items-center gap-2 min-w-[80px]">
+      <div className="flex-1 h-1.5 rounded-full bg-slate-700">
+        <div
+          className={`h-full rounded-full ${POS_BAR[position]}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-xs text-slate-300 tabular-nums w-10 text-right">{value.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+export function PlayerRow({ row, onPlayerClick }: { row: Row<Player>; onPlayerClick?: (p: Player) => void }) {
   const player = row.original;
   const isInjured = player.status === 'injured';
+  const diff = player.top_n_ownership - player.global_ownership;
+  const diffColor = diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-slate-400';
+  const diffSign  = diff > 0 ? '+' : '';
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTableRowElement>) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onPlayerClick?.(player);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = e.currentTarget.nextElementSibling as HTMLElement | null;
+      next?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = e.currentTarget.previousElementSibling as HTMLElement | null;
+      prev?.focus();
+    }
+  }
 
   return (
-    <tr className={`border-b border-gray-100 hover:bg-gray-50 ${isInjured ? 'opacity-40' : ''}`}>
+    <tr
+      tabIndex={onPlayerClick ? 0 : undefined}
+      role={onPlayerClick ? 'button' : undefined}
+      aria-label={onPlayerClick ? `View ${player.name}` : undefined}
+      className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors focus:outline-none focus:bg-slate-700/40 focus:ring-1 focus:ring-inset focus:ring-indigo-500 ${isInjured ? 'opacity-40' : ''} ${onPlayerClick ? 'cursor-pointer' : ''}`}
+      onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
+      onKeyDown={onPlayerClick ? handleKeyDown : undefined}
+    >
       {/* Name + status */}
-      <td className="px-3 py-2 text-sm font-medium text-gray-900 whitespace-nowrap">
+      <td className="px-3 py-2 text-sm font-medium text-slate-100 whitespace-nowrap">
         <div className="flex items-center gap-1.5">
           <span
             className={`shrink-0 w-2 h-2 rounded-full ${STATUS_DOT[player.status]}`}
             title={player.news || player.status}
           />
-          <span
-            className="cursor-default"
-            title={player.news || undefined}
-          >
+          <span className="cursor-default" title={player.news || undefined}>
             {player.name}
           </span>
         </div>
       </td>
 
       {/* Team */}
-      <td className="px-3 py-2 text-sm text-gray-600">{player.team.short_name}</td>
+      <td className="px-3 py-2 text-sm text-slate-400">{player.team.short_name}</td>
 
       {/* Position */}
-      <td className="px-3 py-2 text-sm text-gray-600">{player.position}</td>
+      <td className="px-3 py-2">
+        <PositionBadge position={player.position} />
+      </td>
 
       {/* Price */}
-      <td className="px-3 py-2 text-sm text-gray-600 text-right">
+      <td className="px-3 py-2 text-sm text-slate-300 text-right tabular-nums">
         £{player.price.toFixed(1)}m
       </td>
 
       {/* Form */}
-      <td className="px-3 py-2 text-sm text-gray-600 text-right">
+      <td className="px-3 py-2 text-sm text-slate-300 text-right tabular-nums">
         {player.form.toFixed(1)}
       </td>
 
-      {/* Global ownership */}
-      <td className="px-3 py-2 text-sm text-gray-600 text-right">
-        {player.global_ownership.toFixed(1)}%
+      {/* Global ownership bar */}
+      <td className="px-3 py-2">
+        <OwnershipBar value={player.global_ownership} position={player.position} />
       </td>
 
-      {/* Top-N ownership */}
-      <td className="px-3 py-2 text-sm text-gray-600 text-right">
-        {player.top_n_ownership.toFixed(1)}%
+      {/* Top-N ownership bar */}
+      <td className="px-3 py-2">
+        <OwnershipBar value={player.top_n_ownership} position={player.position} />
+      </td>
+
+      {/* Differential */}
+      <td className={`px-3 py-2 text-sm font-semibold text-right tabular-nums ${diffColor}`}>
+        {diffSign}{diff.toFixed(1)}%
       </td>
 
       {/* Next 5 fixture chips */}

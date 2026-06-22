@@ -12,7 +12,7 @@ export function GameSwitcher() {
   const availability = useGameAvailability();
 
   return (
-    <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+    <div className="flex gap-1 rounded-lg bg-slate-800 p-1">
       {GAMES.map(({ id, label }) => {
         const enabled = availability[id];
         return (
@@ -23,10 +23,10 @@ export function GameSwitcher() {
             title={enabled ? undefined : `${label} — no data available`}
             className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
               game === id
-                ? 'bg-white shadow text-gray-900'
+                ? 'bg-slate-600 shadow text-white'
                 : enabled
-                ? 'text-gray-500 hover:text-gray-700'
-                : 'text-gray-300 cursor-not-allowed'
+                ? 'text-slate-400 hover:text-white hover:bg-slate-700'
+                : 'text-slate-600 cursor-not-allowed'
             }`}
           >
             {label}

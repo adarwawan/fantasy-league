@@ -6,6 +6,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceArea,
   type TooltipProps,
 } from 'recharts';
 import type { Player } from '../../types/player';
@@ -13,10 +14,10 @@ import type { AxisKey } from './AxisSelector';
 import { PlayerTooltip } from './PlayerTooltip';
 
 const POS_COLORS: Record<string, string> = {
-  GK:  '#f59e0b',
-  DEF: '#3b82f6',
-  MID: '#22c55e',
-  FWD: '#ef4444',
+  GK:  '#34d399', // emerald — matches PositionBadge
+  DEF: '#60a5fa', // blue
+  MID: '#a78bfa', // purple
+  FWD: '#f87171', // red
 };
 
 function computeAvgFdr(player: Player): number {
@@ -34,9 +35,10 @@ function getValue(player: Player, axis: AxisKey, avgFdr: number): number {
   }
 }
 
-function dotRadius(price: number): number {
-  const min = 4, max = 15, rMin = 4, rMax = 10;
-  return rMin + ((price - min) / (max - min)) * (rMax - rMin);
+function dotRadius(ownership: number): number {
+  // scale by global_ownership: 0%→4px, 60%+→12px
+  const rMin = 4, rMax = 12, clamp = 60;
+  return rMin + Math.min(ownership / clamp, 1) * (rMax - rMin);
 }
 
 interface PlotPoint {
@@ -55,13 +57,22 @@ function CustomTooltip({ active, payload }: TooltipProps<number, string>) {
 
 const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'] as const;
 
-interface Props {
-  players: Player[];
-  xAxis:   AxisKey;
-  yAxis:   AxisKey;
+// Show differential zone overlay when one axis is form and the other is an ownership axis
+function isDifferentialView(xAxis: AxisKey, yAxis: AxisKey): boolean {
+  const ownershipAxes = new Set<AxisKey>(['global_ownership', 'top_n_ownership']);
+  const hasForm = xAxis === 'form' || yAxis === 'form';
+  const hasOwnership = ownershipAxes.has(xAxis) || ownershipAxes.has(yAxis);
+  return hasForm && hasOwnership;
 }
 
-export function ScatterPlot({ players, xAxis, yAxis }: Props) {
+interface Props {
+  players:        Player[];
+  xAxis:          AxisKey;
+  yAxis:          AxisKey;
+  onPlayerClick?: (p: Player) => void;
+}
+
+export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
   const byPosition = POSITIONS.reduce<Record<string, PlotPoint[]>>((acc, pos) => {
     acc[pos] = players
       .filter(p => p.position === pos)
@@ -70,7 +81,7 @@ export function ScatterPlot({ players, xAxis, yAxis }: Props) {
         return {
           x: getValue(p, xAxis, avgFdr),
           y: getValue(p, yAxis, avgFdr),
-          r: dotRadius(p.price),
+          r: dotRadius(p.global_ownership),
           player: p,
           avgFdr,
         };
@@ -78,59 +89,109 @@ export function ScatterPlot({ players, xAxis, yAxis }: Props) {
     return acc;
   }, {} as Record<string, PlotPoint[]>);
 
+  const showZone = isDifferentialView(xAxis, yAxis);
+
+  // Differential zone: high form + low ownership quadrant
+  // Always compute so recharts gets real numbers (never undefined)
+  const formIsX = xAxis === 'form';
+  const allX = players.map(p => getValue(p, xAxis, computeAvgFdr(p)));
+  const allY = players.map(p => getValue(p, yAxis, computeAvgFdr(p)));
+  const minX = allX.length ? Math.min(...allX) : 0;
+  const maxX = allX.length ? Math.max(...allX) : 10;
+  const minY = allY.length ? Math.min(...allY) : 0;
+  const maxY = allY.length ? Math.max(...allY) : 10;
+  const midX = (minX + maxX) / 2;
+  const midY = (minY + maxY) / 2;
+
+  // When form is X: high form = right half (x>mid), low ownership = bottom half (y<mid)
+  // When form is Y: high form = top half (y>mid), low ownership = left half (x<mid)
+  const zoneX1 = formIsX ? midX : minX;
+  const zoneX2 = formIsX ? maxX  : midX;
+  const zoneY1 = formIsX ? minY  : midY;
+  const zoneY2 = formIsX ? midY  : maxY;
+
   return (
     <div className="w-full">
       {/* Legend */}
-      <div className="flex gap-4 mb-3 justify-end">
+      <div className="flex gap-4 mb-3 justify-end flex-wrap">
         {POSITIONS.map(pos => (
-          <div key={pos} className="flex items-center gap-1.5 text-xs text-gray-600">
-            <span
-              className="inline-block w-2.5 h-2.5 rounded-full"
-              style={{ background: POS_COLORS[pos] }}
-            />
+          <div key={pos} className="flex items-center gap-1.5 text-xs text-slate-400">
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: POS_COLORS[pos] }} />
             {pos}
           </div>
         ))}
+        {showZone && (
+          <div className="flex items-center gap-1.5 text-xs text-emerald-400 ml-2 pl-2 border-l border-slate-700">
+            <span className="inline-block w-3 h-3 rounded bg-emerald-400/20 border border-emerald-400/40" />
+            Differential zone
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 text-xs text-slate-500 ml-2 pl-2 border-l border-slate-700">
+          dot size = ownership
+        </div>
       </div>
+
       <ResponsiveContainer width="100%" height={520}>
         <ScatterChart margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
           <XAxis
             dataKey="x"
             type="number"
             name={xAxis}
             domain={['auto', 'auto']}
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: '#94a3b8' }}
+            stroke="#475569"
           />
           <YAxis
             dataKey="y"
             type="number"
             name={yAxis}
             domain={['auto', 'auto']}
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 11, fill: '#94a3b8' }}
+            stroke="#475569"
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3', stroke: '#64748b' }} />
+
+          {/* Differential zone overlay — high form, low ownership quadrant */}
+          {showZone && (
+            <ReferenceArea
+              x1={zoneX1}
+              x2={zoneX2}
+              y1={zoneY1}
+              y2={zoneY2}
+              fill="#34d399"
+              fillOpacity={0.07}
+              stroke="#34d399"
+              strokeOpacity={0.3}
+              strokeDasharray="4 4"
+              label={{ value: 'Differential zone', position: 'insideTopRight', fontSize: 10, fill: '#34d399', opacity: 0.7 }}
+            />
+          )}
+
           {POSITIONS.map(pos => (
             <Scatter
               key={pos}
               name={pos}
               data={byPosition[pos]}
               fill={POS_COLORS[pos]}
-              fillOpacity={0.75}
+              fillOpacity={0.8}
               shape={(props: unknown) => {
                 const { cx, cy, payload } = props as { cx: number; cy: number; payload: PlotPoint };
                 return (
-                <circle
-                  key={`${payload.player.id}`}
-                  cx={cx}
-                  cy={cy}
-                  r={payload.r}
-                  fill={POS_COLORS[pos]}
-                  fillOpacity={0.75}
-                  stroke="white"
-                  strokeWidth={1}
-                />
-              );}}
+                  <circle
+                    key={payload.player.id}
+                    cx={cx}
+                    cy={cy}
+                    r={payload.r}
+                    fill={POS_COLORS[pos]}
+                    fillOpacity={0.8}
+                    stroke="#1e293b"
+                    strokeWidth={1.5}
+                    style={onPlayerClick ? { cursor: 'pointer' } : undefined}
+                    onClick={onPlayerClick ? () => onPlayerClick(payload.player) : undefined}
+                  />
+                );
+              }}
             />
           ))}
         </ScatterChart>
