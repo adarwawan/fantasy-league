@@ -6,20 +6,34 @@ const POSITIONS: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
 interface Props {
   params:    PlayerQueryParams;
   onChange:  (next: PlayerQueryParams) => void;
+  search:    string;
+  onSearch:  (v: string) => void;
 }
 
-export function PlayerFilters({ params, onChange }: Props) {
+export function PlayerFilters({ params, onChange, search, onSearch }: Props) {
   const topN     = params.top_n     ?? 10000;
   const maxPrice = params.max_price ?? 15.0;
 
   return (
     <div className="flex flex-wrap gap-4 items-end mb-4">
+      {/* Search */}
+      <div>
+        <label className="block text-xs text-slate-400 mb-1">Search player</label>
+        <input
+          type="search"
+          value={search}
+          onChange={e => onSearch(e.target.value)}
+          placeholder="e.g. Salah"
+          className="px-3 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-40"
+        />
+      </div>
+
       {/* Position toggle */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">Position</label>
-        <div className="flex rounded-md border border-gray-200 overflow-hidden text-sm">
+        <label className="block text-xs text-slate-400 mb-1">Position</label>
+        <div className="flex rounded-md border border-slate-600 overflow-hidden text-sm">
           <button
-            className={`px-3 py-1.5 ${!params.pos ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            className={`px-3 py-1.5 ${!params.pos ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
             onClick={() => onChange({ ...params, pos: undefined })}
           >
             All
@@ -27,7 +41,7 @@ export function PlayerFilters({ params, onChange }: Props) {
           {POSITIONS.map(p => (
             <button
               key={p}
-              className={`px-3 py-1.5 border-l border-gray-200 ${params.pos === p ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 border-l border-slate-600 ${params.pos === p ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
               onClick={() => onChange({ ...params, pos: params.pos === p ? undefined : p })}
             >
               {p}
@@ -38,7 +52,7 @@ export function PlayerFilters({ params, onChange }: Props) {
 
       {/* Max price slider */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">
+        <label className="block text-xs text-slate-400 mb-1">
           Max price: £{maxPrice.toFixed(1)}m
         </label>
         <input
@@ -54,12 +68,12 @@ export function PlayerFilters({ params, onChange }: Props) {
 
       {/* Top-N */}
       <div>
-        <label className="block text-xs text-gray-500 mb-1">Top-N</label>
-        <div className="flex rounded-md border border-gray-200 overflow-hidden text-sm">
+        <label className="block text-xs text-slate-400 mb-1">Top-N</label>
+        <div className="flex rounded-md border border-slate-600 overflow-hidden text-sm">
           {([1000, 10000, 100000] as const).map(n => (
             <button
               key={n}
-              className={`px-3 py-1.5 border-l first:border-l-0 border-gray-200 ${topN === n ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 border-l first:border-l-0 border-slate-600 ${topN === n ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
               onClick={() => onChange({ ...params, top_n: n })}
             >
               Top-{n >= 100000 ? '100k' : n >= 10000 ? '10k' : '1k'}

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayers } from '../hooks/usePlayers';
 import type { PlayerQueryParams } from '../api/players';
@@ -6,9 +6,9 @@ import { PlayerFilters } from '../components/players/PlayerFilters';
 import { PlayerTable } from '../components/players/PlayerTable';
 import { SkeletonRow } from '../components/common/SkeletonRow';
 
-// PLAYER · TEAM · POS · PRICE · FORM · GLOBAL% · TOP-N% · NEXT 5 GWS
+// PLAYER · TEAM · POS · PRICE · FORM · GLOBAL% · TOP-N% · DIFF · NEXT 5 GWS
 const PLAYER_SKELETON_COLS = [
-  'w-32', 'w-12', 'w-10', 'w-14', 'w-10', 'w-14', 'w-14', 'w-40',
+  'w-32', 'w-12', 'w-10', 'w-14', 'w-10', 'w-14', 'w-14', 'w-14', 'w-40',
 ];
 
 function paramsFromSearch(sp: URLSearchParams): PlayerQueryParams {
@@ -33,9 +33,22 @@ function paramsToSearch(p: PlayerQueryParams): Record<string, string> {
   return out;
 }
 
+function useDebounced<T>(value: T, delay = 200): T {
+  const [debounced, setDebounced] = useState(value);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timerRef.current);
+  }, [value, delay]);
+  return debounced;
+}
+
 export function PlayersPage() {
   const { game = 'fpl' } = useParams<{ game: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [searchInput, setSearchInput] = useState('');
+  const debouncedSearch = useDebounced(searchInput);
 
   useEffect(() => {
     document.title = `${game.toUpperCase()} — Players`;
@@ -43,6 +56,17 @@ export function PlayersPage() {
 
   const params = paramsFromSearch(searchParams);
   const { data, isLoading, isError } = usePlayers(game, params);
+
+  const filteredPlayers = useMemo(() => {
+    if (!data) return [];
+    if (!debouncedSearch.trim()) return data.players;
+    const q = debouncedSearch.toLowerCase();
+    return data.players.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.team.short_name.toLowerCase().includes(q) ||
+      p.team.name.toLowerCase().includes(q)
+    );
+  }, [data, debouncedSearch]);
 
   function handleChange(next: PlayerQueryParams) {
     setSearchParams(paramsToSearch(next), { replace: true });
@@ -74,8 +98,13 @@ export function PlayersPage() {
       <h1 className="text-xl font-semibold text-slate-100 mb-4">
         {game.toUpperCase()} — Players
       </h1>
-      <PlayerFilters params={params} onChange={handleChange} />
-      <PlayerTable players={data.players} topNSize={data.meta.top_n_size} />
+      <PlayerFilters
+        params={params}
+        onChange={handleChange}
+        search={searchInput}
+        onSearch={setSearchInput}
+      />
+      <PlayerTable players={filteredPlayers} topNSize={data.meta.top_n_size} />
     </div>
   );
 }
