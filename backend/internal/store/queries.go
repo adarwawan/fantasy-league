@@ -29,7 +29,6 @@ type PlayerRow struct {
 	Form            float64
 	GlobalOwnership float64
 	TopNOwnership   float64
-	TopNSize        int
 	Status          string
 	News            string
 	Fixtures        []FixtureInfo
@@ -64,7 +63,7 @@ type FixtureRow struct {
 
 var validSortCols = map[string]string{
 	"global_ownership": "p.global_ownership DESC",
-	"top_n_ownership":  "p.top_n_ownership DESC",
+	"top_n_ownership":  "COALESCE(o.ownership, 0) DESC",
 	"form":             "p.form DESC",
 	"price":            "p.price DESC",
 	"name":             "p.name ASC",
@@ -73,7 +72,8 @@ var validSortCols = map[string]string{
 // QueryPlayers returns players for a game with next-5-fixtures joined.
 // sort must be one of the keys in validSortCols; defaults to global_ownership.
 // pos filters by position ("" = all). maxPrice = 0 means no filter.
-func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice float64, sort string) ([]PlayerRow, error) {
+// topN selects which ownership tier to join from player_top_n_ownerships.
+func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice float64, sort string, topN int) ([]PlayerRow, error) {
 	orderBy, ok := validSortCols[sort]
 	if !ok {
 		orderBy = validSortCols["global_ownership"]
@@ -125,19 +125,20 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			p.id, p.game_id, p.name,
 			t.id, t.short_name, t.name,
 			p.position, p.price, p.form,
-			p.global_ownership, p.top_n_ownership, p.top_n_size,
+			p.global_ownership, COALESCE(o.ownership, 0),
 			p.status, COALESCE(p.news, ''),
 			pf.fixtures
 		FROM players p
 		JOIN teams t ON t.id = p.team_id
 		JOIN player_fixtures pf ON pf.player_id = p.id
+		LEFT JOIN player_top_n_ownerships o ON o.player_id = p.id AND o.top_n = $4
 		WHERE p.game_id = $1
 		  AND ($2::text = '' OR p.position = $2)
 		  AND ($3::numeric = 0 OR p.price <= $3)
 		ORDER BY %s
 	`, orderBy)
 
-	rows, err := s.db.Query(ctx, q, gameID, pos, maxPrice)
+	rows, err := s.db.Query(ctx, q, gameID, pos, maxPrice, topN)
 	if err != nil {
 		return nil, fmt.Errorf("query players: %w", err)
 	}
@@ -151,7 +152,7 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			&r.ID, &r.GameID, &r.Name,
 			&r.TeamID, &r.TeamShortName, &r.TeamName,
 			&r.Position, &r.Price, &r.Form,
-			&r.GlobalOwnership, &r.TopNOwnership, &r.TopNSize,
+			&r.GlobalOwnership, &r.TopNOwnership,
 			&r.Status, &r.News, &fixturesJSON,
 		); err != nil {
 			return nil, fmt.Errorf("scan player: %w", err)

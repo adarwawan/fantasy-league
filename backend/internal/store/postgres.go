@@ -58,11 +58,11 @@ func (s *Store) UpsertPlayers(ctx context.Context, players []fantasy.Player) err
 			return fmt.Errorf("player %d: invalid team id %q: %w", p.ExternalID, p.TeamID, err)
 		}
 		_, err = s.db.Exec(ctx, `
-			INSERT INTO players (game_id, external_id, name, team_id, position, price, form, global_ownership, top_n_ownership, top_n_size, status, news, updated_at)
+			INSERT INTO players (game_id, external_id, name, team_id, position, price, form, global_ownership, status, news, updated_at)
 			VALUES (
 				$1, $2, $3,
 				(SELECT id FROM teams WHERE game_id = $1 AND external_id = $4),
-				$5, $6, $7, $8, $9, $10, $11, $12, $13
+				$5, $6, $7, $8, $9, $10, $11
 			)
 			ON CONFLICT (game_id, external_id) DO UPDATE SET
 				name             = EXCLUDED.name,
@@ -74,7 +74,7 @@ func (s *Store) UpsertPlayers(ctx context.Context, players []fantasy.Player) err
 				status           = EXCLUDED.status,
 				news             = EXCLUDED.news,
 				updated_at       = EXCLUDED.updated_at
-		`, p.GameID, p.ExternalID, p.Name, extTeamID, p.Position, p.Price, p.Form, p.GlobalOwnership, p.TopNOwnership, p.TopNSize, p.Status, p.News, p.UpdatedAt)
+		`, p.GameID, p.ExternalID, p.Name, extTeamID, p.Position, p.Price, p.Form, p.GlobalOwnership, p.Status, p.News, p.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("upsert player %d: %w", p.ExternalID, err)
 		}
@@ -121,7 +121,7 @@ func (s *Store) UpsertFixtures(ctx context.Context, fixtures []fantasy.Fixture) 
 
 // ResetManagerRanks nullifies overall_rank for all managers in a game so that
 // managers who fell out of the top-N in the current sync are excluded from
-// RecomputeTopNOwnership (NULL <= N is false in SQL).
+// RecomputeTopNOwnerships (NULL <= N is false in SQL).
 func (s *Store) ResetManagerRanks(ctx context.Context, gameID string) error {
 	_, err := s.db.Exec(ctx, `UPDATE managers SET overall_rank = NULL WHERE game_id = $1`, gameID)
 	return err
@@ -263,27 +263,32 @@ func (s *Store) RecomputeTeamForm(ctx context.Context, gameID string, gwWindow i
 	return err
 }
 
-func (s *Store) RecomputeTopNOwnership(ctx context.Context, gameID string, topN int, gw int) error {
-	_, err := s.db.Exec(ctx, `
-		WITH top_managers AS (
-			SELECT id FROM managers
-			WHERE game_id    = $1
-			  AND overall_rank <= $2
-		),
-		pick_counts AS (
-			SELECT player_id, COUNT(*) AS owned_by
-			FROM manager_picks
-			WHERE game_id    = $1
-			  AND gw         = $3
-			  AND manager_id IN (SELECT id FROM top_managers)
-			GROUP BY player_id
-		)
-		UPDATE players p
-		SET    top_n_ownership = ROUND(pc.owned_by::numeric / $2 * 100, 2),
-		       top_n_size      = $2
-		FROM   pick_counts pc
-		WHERE  p.id      = pc.player_id
-		  AND  p.game_id = $1
-	`, gameID, topN, gw)
-	return err
+func (s *Store) RecomputeTopNOwnerships(ctx context.Context, gameID string, topNOptions []int, gw int) error {
+	for _, topN := range topNOptions {
+		_, err := s.db.Exec(ctx, `
+			WITH top_managers AS (
+				SELECT id FROM managers
+				WHERE game_id     = $1
+				  AND overall_rank <= $2
+			),
+			pick_counts AS (
+				SELECT player_id, COUNT(*) AS owned_by
+				FROM manager_picks
+				WHERE game_id    = $1
+				  AND gw         = $3
+				  AND manager_id IN (SELECT id FROM top_managers)
+				GROUP BY player_id
+			)
+			INSERT INTO player_top_n_ownerships (player_id, top_n, ownership)
+			SELECT pc.player_id, $2, ROUND(pc.owned_by::numeric / $2 * 100, 2)
+			FROM   pick_counts pc
+			JOIN   players p ON p.id = pc.player_id AND p.game_id = $1
+			ON CONFLICT (player_id, top_n) DO UPDATE
+			  SET ownership = EXCLUDED.ownership
+		`, gameID, topN, gw)
+		if err != nil {
+			return fmt.Errorf("RecomputeTopNOwnerships topN=%d: %w", topN, err)
+		}
+	}
+	return nil
 }

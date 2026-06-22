@@ -28,9 +28,9 @@ func main() {
 
 	var sources []fantasy.Source
 	if cfg.FPLSyncEnabled {
-		sources = append(sources, fplsrc.NewSource(cfg.FPLLeagueID, cfg.FPLTopNDefault))
+		sources = append(sources, fplsrc.NewSource(cfg.FPLLeagueID))
 	}
 
-	syncer := syncsvc.New(sources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
+	syncer := syncsvc.New(sources, pg, cache, cfg.FormGWWindow)
 	syncer.RunAll(ctx)
 }

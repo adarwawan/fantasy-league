@@ -13,7 +13,7 @@ import (
 )
 
 type playerStore interface {
-	QueryPlayers(ctx context.Context, gameID, pos string, maxPrice float64, sort string) ([]store.PlayerRow, error)
+	QueryPlayers(ctx context.Context, gameID, pos string, maxPrice float64, sort string, topN int) ([]store.PlayerRow, error)
 	CurrentGW(ctx context.Context, gameID string) (int, error)
 }
 
@@ -56,7 +56,6 @@ type playerJSON struct {
 	Form            float64       `json:"form"`
 	GlobalOwnership float64       `json:"global_ownership"`
 	TopNOwnership   float64       `json:"top_n_ownership"`
-	TopNSize        int           `json:"top_n_size"`
 	Status          string        `json:"status"`
 	News            string        `json:"news"`
 	Fixtures        []fixtureJSON `json:"fixtures"`
@@ -86,12 +85,7 @@ func (h *PlayersHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	maxPrice, _ := strconv.ParseFloat(q.Get("max_price"), 64)
 	topN, _ := strconv.Atoi(q.Get("top_n"))
-	switch topN {
-	case 1000, 10000, 100000:
-		// valid
-	default:
-		topN = 10000
-	}
+	topN = validTopN(game, topN)
 
 	cacheKey := store.CacheKey(game, "players", pos, sortBy, strconv.Itoa(topN), strconv.FormatFloat(maxPrice, 'f', 1, 64))
 	if cached, _ := h.cache.Get(r.Context(), cacheKey); cached != nil {
@@ -101,7 +95,7 @@ func (h *PlayersHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	players, err := h.store.QueryPlayers(r.Context(), game, pos, maxPrice, sortBy)
+	players, err := h.store.QueryPlayers(r.Context(), game, pos, maxPrice, sortBy, topN)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "query failed")
 		return
@@ -129,20 +123,50 @@ func (h *PlayersHandler) Scatter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	players, err := h.store.QueryPlayers(r.Context(), game, "", 0, "global_ownership")
+	scatterTopN := defaultTopN(game)
+	players, err := h.store.QueryPlayers(r.Context(), game, "", 0, "global_ownership", scatterTopN)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "query failed")
 		return
 	}
 	gw, _ := h.store.CurrentGW(r.Context(), game)
 
-	resp := buildPlayersResponse(game, gw, 10000, players)
+	resp := buildPlayersResponse(game, gw, scatterTopN, players)
 	b, _ := json.Marshal(resp)
 	h.cache.Set(r.Context(), cacheKey, b, 30*time.Minute)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Cache", "MISS")
 	w.Write(b)
+}
+
+// topNByGame maps each game to its valid Top-N options (ascending).
+var topNByGame = map[string][]int{
+	"wcf": {100, 1000},
+	"fpl": {1000, 10000, 100000},
+}
+
+// validTopN returns n if it is a valid Top-N tier for the game, otherwise the game default.
+func validTopN(game string, n int) int {
+	opts, ok := topNByGame[game]
+	if !ok {
+		return n
+	}
+	for _, o := range opts {
+		if o == n {
+			return n
+		}
+	}
+	return opts[len(opts)-1] // default to the largest tier
+}
+
+// defaultTopN returns the largest Top-N tier for a game.
+func defaultTopN(game string) int {
+	opts, ok := topNByGame[game]
+	if !ok || len(opts) == 0 {
+		return 10000
+	}
+	return opts[len(opts)-1]
 }
 
 func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow) playersResponse {
@@ -165,7 +189,6 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow) pla
 			Form:            r.Form,
 			GlobalOwnership: r.GlobalOwnership,
 			TopNOwnership:   r.TopNOwnership,
-			TopNSize:        r.TopNSize,
 			Status:          r.Status,
 			News:            r.News,
 			Fixtures:        fixtures,

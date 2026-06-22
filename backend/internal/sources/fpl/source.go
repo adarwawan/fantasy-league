@@ -8,20 +8,23 @@ import (
 	"fantasy-league/internal/fantasy"
 )
 
+// TopNOptions are the supported Top-N tiers for FPL.
+var TopNOptions = []int{1000, 10000, 100000}
+
 // Source implements fantasy.Source for the FPL API.
 type Source struct {
 	client   *client
 	leagueID int
-	topN     int
 }
 
-func NewSource(leagueID, topN int) *Source {
+func NewSource(leagueID int) *Source {
 	return &Source{
 		client:   newClient(),
 		leagueID: leagueID,
-		topN:     topN,
 	}
 }
+
+func (s *Source) TopNOptions() []int { return TopNOptions }
 
 func (s *Source) GameID() string { return gameID }
 

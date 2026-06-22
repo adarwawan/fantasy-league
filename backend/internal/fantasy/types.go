@@ -12,8 +12,6 @@ type Player struct {
 	Price           float64
 	Form            float64
 	GlobalOwnership float64
-	TopNOwnership   float64
-	TopNSize        int
 	Status          string
 	News            string
 	UpdatedAt       time.Time

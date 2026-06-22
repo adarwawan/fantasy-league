@@ -4,7 +4,20 @@ import type { PlayerQueryParams } from '../../api/players';
 type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
 const POSITIONS: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
 
+const TOP_N_OPTIONS: Record<string, readonly number[]> = {
+  wcf: [100, 1000],
+  fpl: [1000, 10000, 100000],
+};
+
+function topNLabel(n: number): string {
+  if (n >= 100000) return '100k';
+  if (n >= 10000)  return '10k';
+  if (n >= 1000)   return '1k';
+  return String(n);
+}
+
 interface Props {
+  game:         string;
   params:       PlayerQueryParams;
   onChange:     (next: PlayerQueryParams) => void;
   search:       string;
@@ -12,8 +25,9 @@ interface Props {
   searchRef?:   RefObject<HTMLInputElement>;
 }
 
-export function PlayerFilters({ params, onChange, search, onSearch, searchRef }: Props) {
-  const topN     = params.top_n     ?? 10000;
+export function PlayerFilters({ game, params, onChange, search, onSearch, searchRef }: Props) {
+  const topNOptions = TOP_N_OPTIONS[game] ?? TOP_N_OPTIONS['fpl'];
+  const topN     = params.top_n     ?? topNOptions[topNOptions.length - 1];
   const minPrice = params.min_price ?? 4.0;
   const maxPrice = params.max_price ?? 15.0;
 
@@ -104,14 +118,14 @@ export function PlayerFilters({ params, onChange, search, onSearch, searchRef }:
       <div>
         <label className="block text-xs text-slate-400 mb-1">Top-N</label>
         <div className="flex rounded-md border border-slate-600 overflow-hidden text-sm" role="group" aria-label="Top N managers">
-          {([1000, 10000, 100000] as const).map(n => (
+          {topNOptions.map(n => (
             <button
               key={n}
               aria-pressed={topN === n}
               className={`px-3 py-1.5 border-l first:border-l-0 border-slate-600 ${topN === n ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
               onClick={() => onChange({ ...params, top_n: n })}
             >
-              Top-{n >= 100000 ? '100k' : n >= 10000 ? '10k' : '1k'}
+              Top-{topNLabel(n)}
             </button>
           ))}
         </div>
