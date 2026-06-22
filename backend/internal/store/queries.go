@@ -292,3 +292,97 @@ func (s *Store) CurrentGW(ctx context.Context, gameID string) (int, error) {
 	).Scan(&gw)
 	return gw, err
 }
+
+// MatchOddsRow is the read model for a single match_odds record.
+type MatchOddsRow struct {
+	OddsMatchID string    `json:"odds_match_id"`
+	GameID      string    `json:"game_id"`
+	FixtureID   string    `json:"fixture_id,omitempty"`
+	HomeTeam    string    `json:"home_team"`
+	AwayTeam    string    `json:"away_team"`
+	LambdaHome  float64   `json:"lambda_home"`
+	LambdaAway  float64   `json:"lambda_away"`
+	HomeCSPct   float64   `json:"home_cs_pct"`
+	AwayCSPct   float64   `json:"away_cs_pct"`
+	KickoffTime time.Time `json:"kickoff_time"`
+	FetchedAt   time.Time `json:"fetched_at"`
+}
+
+// UpsertMatchOdds persists computed odds rows and refreshes the Redis cache
+// under "{gameID}:odds:computed".
+func (s *Store) UpsertMatchOdds(ctx context.Context, rows []MatchOddsRow, cache *Cache, ttl time.Duration) error {
+	for _, r := range rows {
+		fixtureID := (*string)(nil)
+		if r.FixtureID != "" {
+			fixtureID = &r.FixtureID
+		}
+		_, err := s.db.Exec(ctx, `
+			INSERT INTO match_odds
+				(odds_match_id, game_id, fixture_id, home_team, away_team,
+				 lambda_home, lambda_away, home_cs_pct, away_cs_pct, kickoff_time, fetched_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (odds_match_id) DO UPDATE SET
+				fixture_id   = EXCLUDED.fixture_id,
+				home_team    = EXCLUDED.home_team,
+				away_team    = EXCLUDED.away_team,
+				lambda_home  = EXCLUDED.lambda_home,
+				lambda_away  = EXCLUDED.lambda_away,
+				home_cs_pct  = EXCLUDED.home_cs_pct,
+				away_cs_pct  = EXCLUDED.away_cs_pct,
+				kickoff_time = EXCLUDED.kickoff_time,
+				fetched_at   = EXCLUDED.fetched_at
+		`, r.OddsMatchID, r.GameID, fixtureID, r.HomeTeam, r.AwayTeam,
+			r.LambdaHome, r.LambdaAway, r.HomeCSPct, r.AwayCSPct, r.KickoffTime, r.FetchedAt)
+		if err != nil {
+			return fmt.Errorf("upsert match_odds %s: %w", r.OddsMatchID, err)
+		}
+	}
+
+	if cache != nil {
+		b, err := json.Marshal(rows)
+		if err == nil {
+			_ = cache.Set(ctx, CacheKey(rows[0].GameID, "odds:computed"), b, ttl)
+		}
+	}
+	return nil
+}
+
+// QueryMatchOdds returns all match_odds rows for a game, reading from the
+// Redis cache ("{gameID}:odds:computed") and falling back to Postgres on miss.
+func (s *Store) QueryMatchOdds(ctx context.Context, gameID string, cache *Cache) ([]MatchOddsRow, error) {
+	if cache != nil {
+		if b, err := cache.Get(ctx, CacheKey(gameID, "odds:computed")); err == nil && b != nil {
+			var rows []MatchOddsRow
+			if err := json.Unmarshal(b, &rows); err == nil {
+				return rows, nil
+			}
+		}
+	}
+
+	pgRows, err := s.db.Query(ctx, `
+		SELECT odds_match_id, game_id, COALESCE(fixture_id::text, ''),
+		       home_team, away_team, lambda_home, lambda_away,
+		       home_cs_pct, away_cs_pct, kickoff_time, fetched_at
+		FROM match_odds
+		WHERE game_id = $1
+		ORDER BY kickoff_time
+	`, gameID)
+	if err != nil {
+		return nil, fmt.Errorf("query match_odds: %w", err)
+	}
+	defer pgRows.Close()
+
+	var out []MatchOddsRow
+	for pgRows.Next() {
+		var r MatchOddsRow
+		if err := pgRows.Scan(
+			&r.OddsMatchID, &r.GameID, &r.FixtureID,
+			&r.HomeTeam, &r.AwayTeam, &r.LambdaHome, &r.LambdaAway,
+			&r.HomeCSPct, &r.AwayCSPct, &r.KickoffTime, &r.FetchedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan match_odds: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, pgRows.Err()
+}
