@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -25,6 +26,11 @@ type Config struct {
 	UCLFAuthToken   string
 
 	FormGWWindow int
+
+	OddsAPIKey     string
+	OddsCacheTTL   time.Duration
+	WCFOddsEnabled bool
+	FPLOddsEnabled bool
 
 	SyncEndpointSecret string
 	CORSAllowedOrigins []string
@@ -55,6 +61,11 @@ func Load() Config {
 		UCLFAuthToken:   os.Getenv("UCLF_AUTH_TOKEN"),
 
 		FormGWWindow: envInt("FORM_GW_WINDOW", 3),
+
+		OddsAPIKey:     os.Getenv("ODDS_API_KEY"),
+		OddsCacheTTL:   envDuration("ODDS_CACHE_TTL", 15*time.Minute),
+		WCFOddsEnabled: envBool("WCF_ODDS_ENABLED", false),
+		FPLOddsEnabled: envBool("FPL_ODDS_ENABLED", false),
 
 		SyncEndpointSecret: os.Getenv("SYNC_ENDPOINT_SECRET"),
 		CORSAllowedOrigins: corsOrigins(),
@@ -91,4 +102,16 @@ func envInt(key string, def int) int {
 		return def
 	}
 	return i
+}
+
+func envDuration(key string, def time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return def
+	}
+	return d
 }

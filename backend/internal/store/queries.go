@@ -292,3 +292,129 @@ func (s *Store) CurrentGW(ctx context.Context, gameID string) (int, error) {
 	).Scan(&gw)
 	return gw, err
 }
+
+// MatchOddsRow is the read model for a single match_odds record.
+type MatchOddsRow struct {
+	OddsMatchID string    `json:"odds_match_id"`
+	GameID      string    `json:"game_id"`
+	FixtureID   string    `json:"fixture_id,omitempty"`
+	GW          int       `json:"gw,omitempty"` // 0 when not linked to a fixture
+	HomeTeam    string    `json:"home_team"`
+	AwayTeam    string    `json:"away_team"`
+	LambdaHome  float64   `json:"lambda_home"`
+	LambdaAway  float64   `json:"lambda_away"`
+	HomeCSPct   float64   `json:"home_cs_pct"`
+	AwayCSPct   float64   `json:"away_cs_pct"`
+	KickoffTime time.Time `json:"kickoff_time"`
+	FetchedAt   time.Time `json:"fetched_at"`
+}
+
+// UpsertMatchOdds persists computed odds rows and refreshes the Redis cache
+// under "{gameID}:odds:computed".
+func (s *Store) UpsertMatchOdds(ctx context.Context, rows []MatchOddsRow, cache *Cache, ttl time.Duration) error {
+	for _, r := range rows {
+		fixtureID := (*string)(nil)
+		if r.FixtureID != "" {
+			fixtureID = &r.FixtureID
+		}
+		_, err := s.db.Exec(ctx, `
+			INSERT INTO match_odds
+				(odds_match_id, game_id, fixture_id, home_team, away_team,
+				 lambda_home, lambda_away, home_cs_pct, away_cs_pct, kickoff_time, fetched_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			ON CONFLICT (odds_match_id) DO UPDATE SET
+				fixture_id   = EXCLUDED.fixture_id,
+				home_team    = EXCLUDED.home_team,
+				away_team    = EXCLUDED.away_team,
+				lambda_home  = EXCLUDED.lambda_home,
+				lambda_away  = EXCLUDED.lambda_away,
+				home_cs_pct  = EXCLUDED.home_cs_pct,
+				away_cs_pct  = EXCLUDED.away_cs_pct,
+				kickoff_time = EXCLUDED.kickoff_time,
+				fetched_at   = EXCLUDED.fetched_at
+		`, r.OddsMatchID, r.GameID, fixtureID, r.HomeTeam, r.AwayTeam,
+			r.LambdaHome, r.LambdaAway, r.HomeCSPct, r.AwayCSPct, r.KickoffTime, r.FetchedAt)
+		if err != nil {
+			return fmt.Errorf("upsert match_odds %s: %w", r.OddsMatchID, err)
+		}
+	}
+
+	if cache != nil {
+		b, err := json.Marshal(rows)
+		if err == nil {
+			_ = cache.Set(ctx, CacheKey(rows[0].GameID, "odds:computed"), b, ttl)
+		}
+	}
+	return nil
+}
+
+// QueryMatchOdds returns match_odds rows for a game filtered to the given
+// gameweeks. The full unfiltered set is cached in Redis under
+// "{gameID}:odds:computed"; GW filtering is applied in Go after the cache hit.
+// Pass gws=nil to return all gameweeks.
+func (s *Store) QueryMatchOdds(ctx context.Context, gameID string, gws []int, cache *Cache) ([]MatchOddsRow, error) {
+	var all []MatchOddsRow
+
+	if cache != nil {
+		if b, err := cache.Get(ctx, CacheKey(gameID, "odds:computed")); err == nil && b != nil {
+			if err := json.Unmarshal(b, &all); err == nil {
+				return filterByGW(all, gws), nil
+			}
+		}
+	}
+
+	pgRows, err := s.db.Query(ctx, `
+		SELECT mo.odds_match_id, mo.game_id, COALESCE(mo.fixture_id::text, ''),
+		       COALESCE(f.gw, 0),
+		       mo.home_team, mo.away_team, mo.lambda_home, mo.lambda_away,
+		       mo.home_cs_pct, mo.away_cs_pct, mo.kickoff_time, mo.fetched_at
+		FROM match_odds mo
+		LEFT JOIN fixtures f ON f.id = mo.fixture_id
+		WHERE mo.game_id = $1
+		ORDER BY mo.kickoff_time
+	`, gameID)
+	if err != nil {
+		return nil, fmt.Errorf("query match_odds: %w", err)
+	}
+	defer pgRows.Close()
+
+	for pgRows.Next() {
+		var r MatchOddsRow
+		if err := pgRows.Scan(
+			&r.OddsMatchID, &r.GameID, &r.FixtureID, &r.GW,
+			&r.HomeTeam, &r.AwayTeam, &r.LambdaHome, &r.LambdaAway,
+			&r.HomeCSPct, &r.AwayCSPct, &r.KickoffTime, &r.FetchedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan match_odds: %w", err)
+		}
+		all = append(all, r)
+	}
+	if err := pgRows.Err(); err != nil {
+		return nil, err
+	}
+
+	if cache != nil {
+		if b, err := json.Marshal(all); err == nil {
+			_ = cache.Set(ctx, CacheKey(gameID, "odds:computed"), b, 0)
+		}
+	}
+
+	return filterByGW(all, gws), nil
+}
+
+func filterByGW(rows []MatchOddsRow, gws []int) []MatchOddsRow {
+	if len(gws) == 0 {
+		return rows
+	}
+	set := make(map[int]bool, len(gws))
+	for _, gw := range gws {
+		set[gw] = true
+	}
+	out := rows[:0:0]
+	for _, r := range rows {
+		if set[r.GW] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
