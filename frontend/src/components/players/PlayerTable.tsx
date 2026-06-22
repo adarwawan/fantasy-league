@@ -32,9 +32,10 @@ const columns = [
 interface Props {
   players: Player[];
   topNSize: number;
+  onPlayerClick?: (p: Player) => void;
 }
 
-export function PlayerTable({ players, topNSize }: Props) {
+export function PlayerTable({ players, topNSize, onPlayerClick }: Props) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'global_ownership', desc: true },
   ]);
@@ -77,7 +78,7 @@ export function PlayerTable({ players, topNSize }: Props) {
           </thead>
           <tbody>
             {sortedRows.map(row => (
-              <PlayerRow key={row.id} row={row} />
+              <PlayerRow key={row.id} row={row} onPlayerClick={onPlayerClick} />
             ))}
           </tbody>
         </table>

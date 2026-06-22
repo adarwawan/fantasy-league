@@ -31,7 +31,7 @@ function OwnershipBar({ value, position, max = 80 }: { value: number; position: 
   );
 }
 
-export function PlayerRow({ row }: { row: Row<Player> }) {
+export function PlayerRow({ row, onPlayerClick }: { row: Row<Player>; onPlayerClick?: (p: Player) => void }) {
   const player = row.original;
   const isInjured = player.status === 'injured';
   const diff = player.top_n_ownership - player.global_ownership;
@@ -39,7 +39,10 @@ export function PlayerRow({ row }: { row: Row<Player> }) {
   const diffSign  = diff > 0 ? '+' : '';
 
   return (
-    <tr className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors ${isInjured ? 'opacity-40' : ''}`}>
+    <tr
+      className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors ${isInjured ? 'opacity-40' : ''} ${onPlayerClick ? 'cursor-pointer' : ''}`}
+      onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
+    >
       {/* Name + status */}
       <td className="px-3 py-2 text-sm font-medium text-slate-100 whitespace-nowrap">
         <div className="flex items-center gap-1.5">

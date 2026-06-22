@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { usePlayers } from '../hooks/usePlayers';
 import type { PlayerQueryParams } from '../api/players';
+import type { Player } from '../types/player';
 import { PlayerFilters } from '../components/players/PlayerFilters';
 import { PlayerTable } from '../components/players/PlayerTable';
+import { PlayerDrawer } from '../components/players/PlayerDrawer';
 import { SkeletonRow } from '../components/common/SkeletonRow';
 
-// PLAYER · TEAM · POS · PRICE · FORM · GLOBAL% · TOP-N% · DIFF · NEXT 5 GWS
 const PLAYER_SKELETON_COLS = [
   'w-32', 'w-12', 'w-10', 'w-14', 'w-10', 'w-14', 'w-14', 'w-14', 'w-40',
 ];
@@ -48,6 +49,7 @@ export function PlayersPage() {
   const { game = 'fpl' } = useParams<{ game: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchInput, setSearchInput] = useState('');
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const debouncedSearch = useDebounced(searchInput);
 
   useEffect(() => {
@@ -72,6 +74,9 @@ export function PlayersPage() {
     setSearchParams(paramsToSearch(next), { replace: true });
   }
 
+  const handlePlayerClick = useCallback((p: Player) => setSelectedPlayer(p), []);
+  const handleDrawerClose = useCallback(() => setSelectedPlayer(null), []);
+
   if (isLoading) {
     return (
       <div>
@@ -94,17 +99,24 @@ export function PlayersPage() {
   }
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-slate-100 mb-4">
-        {game.toUpperCase()} — Players
-      </h1>
-      <PlayerFilters
-        params={params}
-        onChange={handleChange}
-        search={searchInput}
-        onSearch={setSearchInput}
-      />
-      <PlayerTable players={filteredPlayers} topNSize={data.meta.top_n_size} />
-    </div>
+    <>
+      <div>
+        <h1 className="text-xl font-semibold text-slate-100 mb-4">
+          {game.toUpperCase()} — Players
+        </h1>
+        <PlayerFilters
+          params={params}
+          onChange={handleChange}
+          search={searchInput}
+          onSearch={setSearchInput}
+        />
+        <PlayerTable
+          players={filteredPlayers}
+          topNSize={data.meta.top_n_size}
+          onPlayerClick={handlePlayerClick}
+        />
+      </div>
+      <PlayerDrawer player={selectedPlayer} onClose={handleDrawerClose} />
+    </>
   );
 }
