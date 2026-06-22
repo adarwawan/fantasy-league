@@ -43,11 +43,13 @@ func solveLambda(line, targetCDF float64) float64 {
 // totals market. Each over/under pair at a given line yields one estimate;
 // if multiple lines are present they are averaged.
 func lambdaFromTotalsOutcomes(outcomes []Outcome) (float64, bool) {
-	// Collect over/under pairs keyed by description (e.g. "2.5").
 	type pair struct{ over, under float64 }
-	pairs := map[string]*pair{}
+	pairs := map[float64]*pair{}
 	for _, o := range outcomes {
-		key := o.Description
+		if o.Point == nil {
+			continue
+		}
+		key := *o.Point
 		if _, ok := pairs[key]; !ok {
 			pairs[key] = &pair{}
 		}
@@ -60,12 +62,8 @@ func lambdaFromTotalsOutcomes(outcomes []Outcome) (float64, bool) {
 	}
 
 	var lambdas []float64
-	for desc, p := range pairs {
+	for line, p := range pairs {
 		if p.over <= 0 || p.under <= 0 {
-			continue
-		}
-		line := parseLineDesc(desc)
-		if line < 0 {
 			continue
 		}
 		// Remove bookmaker margin.
@@ -85,45 +83,6 @@ func lambdaFromTotalsOutcomes(outcomes []Outcome) (float64, bool) {
 		sum += l
 	}
 	return sum / float64(len(lambdas)), true
-}
-
-// parseLineDesc converts a totals description string like "2.5" to a float.
-func parseLineDesc(s string) float64 {
-	if s == "" {
-		return -1
-	}
-	var v float64
-	_, err := parseFloat(s, &v)
-	if err {
-		return -1
-	}
-	return v
-}
-
-// parseFloat parses a simple decimal string into *v; returns true on error.
-func parseFloat(s string, v *float64) (float64, bool) {
-	f := 0.0
-	dec := false
-	place := 0.1
-	for _, c := range s {
-		switch {
-		case c >= '0' && c <= '9':
-			digit := float64(c - '0')
-			if dec {
-				f += digit * place
-				place *= 0.1
-			} else {
-				f = f*10 + digit
-			}
-		case c == '.':
-			dec = true
-		default:
-			*v = 0
-			return 0, true
-		}
-	}
-	*v = f
-	return f, false
 }
 
 // weightedMedian returns the median of values weighted by their weights.
@@ -192,8 +151,9 @@ func EstimateLambdaTotal(bookmakers []Bookmaker) (float64, bool) {
 
 // SplitLambda splits lambdaTotal into home and away components using h2h
 // market probabilities from the given bookmakers (Dixon-Coles simplified split).
-func SplitLambda(lambdaTotal float64, bookmakers []Bookmaker) (home, away float64) {
-	// Average margin-removed h2h probs across bookmakers.
+// homeTeam and awayTeam are the raw team names from the OddsMatch record and
+// are used to identify which h2h outcome belongs to which side.
+func SplitLambda(lambdaTotal float64, bookmakers []Bookmaker, homeTeam, awayTeam string) (home, away float64) {
 	var pHomeSum, pAwaySum float64
 	count := 0
 	for _, bk := range bookmakers {
@@ -201,7 +161,7 @@ func SplitLambda(lambdaTotal float64, bookmakers []Bookmaker) (home, away float6
 			if m.Key != "h2h" {
 				continue
 			}
-			ph, pd, pa := h2hProbs(m.Outcomes)
+			ph, pd, pa := h2hProbs(m.Outcomes, homeTeam, awayTeam)
 			if ph <= 0 || pd <= 0 || pa <= 0 {
 				continue
 			}
@@ -212,7 +172,6 @@ func SplitLambda(lambdaTotal float64, bookmakers []Bookmaker) (home, away float6
 		}
 	}
 	if count == 0 || pAwaySum == 0 {
-		// Fall back to equal split.
 		return lambdaTotal / 2, lambdaTotal / 2
 	}
 	pHome := pHomeSum / float64(count)
@@ -225,23 +184,21 @@ func SplitLambda(lambdaTotal float64, bookmakers []Bookmaker) (home, away float6
 }
 
 // h2hProbs returns raw (un-normalised) implied probabilities for a h2h market.
-func h2hProbs(outcomes []Outcome) (pHome, pDraw, pAway float64) {
-	// The home/away outcomes are named after the teams; "Draw" is always "Draw".
-	// We assume the first non-Draw outcome is home, second is away.
-	var nonDraw []float64
+// It identifies home and away by matching outcome names against homeTeam and
+// awayTeam rather than relying on position order.
+func h2hProbs(outcomes []Outcome, homeTeam, awayTeam string) (pHome, pDraw, pAway float64) {
 	for _, o := range outcomes {
 		if o.Price <= 0 {
 			continue
 		}
-		if o.Name == "Draw" {
+		switch o.Name {
+		case "Draw":
 			pDraw = 1 / o.Price
-		} else {
-			nonDraw = append(nonDraw, 1/o.Price)
+		case homeTeam:
+			pHome = 1 / o.Price
+		case awayTeam:
+			pAway = 1 / o.Price
 		}
-	}
-	if len(nonDraw) >= 2 {
-		pHome = nonDraw[0]
-		pAway = nonDraw[1]
 	}
 	return
 }
@@ -262,7 +219,7 @@ func AggregateBookmakers(matches []OddsMatch) []MatchOdds {
 		if !ok {
 			continue
 		}
-		lHome, lAway := SplitLambda(lambdaTotal, m.Bookmakers)
+		lHome, lAway := SplitLambda(lambdaTotal, m.Bookmakers, m.HomeTeam, m.AwayTeam)
 		result = append(result, MatchOdds{
 			OddsMatchID: m.ID,
 			HomeTeam:    m.HomeTeam,

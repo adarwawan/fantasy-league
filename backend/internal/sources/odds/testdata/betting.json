@@ -24,8 +24,8 @@
             "key": "totals",
             "last_update": "2026-06-15T13:00:00Z",
             "outcomes": [
-              { "name": "Over",  "description": "2.5", "price": 1.70 },
-              { "name": "Under", "description": "2.5", "price": 2.10 }
+              { "name": "Over",  "point": 2.5, "price": 1.70 },
+              { "name": "Under", "point": 2.5, "price": 2.10 }
             ]
           }
         ]
@@ -48,8 +48,8 @@
             "key": "totals",
             "last_update": "2026-06-15T13:05:00Z",
             "outcomes": [
-              { "name": "Over",  "description": "2.5", "price": 1.72 },
-              { "name": "Under", "description": "2.5", "price": 2.08 }
+              { "name": "Over",  "point": 2.5, "price": 1.72 },
+              { "name": "Under", "point": 2.5, "price": 2.08 }
             ]
           }
         ]
@@ -81,8 +81,8 @@
             "key": "totals",
             "last_update": "2026-06-16T16:00:00Z",
             "outcomes": [
-              { "name": "Over",  "description": "2.5", "price": 1.90 },
-              { "name": "Under", "description": "2.5", "price": 1.90 }
+              { "name": "Over",  "point": 2.5, "price": 1.90 },
+              { "name": "Under", "point": 2.5, "price": 1.90 }
             ]
           }
         ]

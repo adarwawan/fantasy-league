@@ -87,8 +87,8 @@ func TestFetchOdds_ParsesBettingJSON(t *testing.T) {
 	if len(totals.Outcomes) != 2 {
 		t.Errorf("totals outcomes: got %d, want 2", len(totals.Outcomes))
 	}
-	if totals.Outcomes[0].Description != "2.5" {
-		t.Errorf("totals description: got %q, want %q", totals.Outcomes[0].Description, "2.5")
+	if totals.Outcomes[0].Point == nil || *totals.Outcomes[0].Point != 2.5 {
+		t.Errorf("totals point: got %v, want 2.5", totals.Outcomes[0].Point)
 	}
 }
 

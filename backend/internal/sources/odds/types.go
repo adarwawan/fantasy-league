@@ -45,10 +45,14 @@ type Market struct {
 	Outcomes   []Outcome `json:"outcomes"`
 }
 
+// Outcome represents one leg of a market.
+//
+// h2h / h2h_lay: Name is the team name (or "Draw"), Point is nil.
+// totals:        Name is "Over" or "Under", Point is the line value (e.g. 2.5).
 type Outcome struct {
-	Name        string  `json:"name"`
-	Price       float64 `json:"price"`
-	Description string  `json:"description,omitempty"` // used in totals: "2.5", "Over", etc.
+	Name  string   `json:"name"`
+	Price float64  `json:"price"`
+	Point *float64 `json:"point,omitempty"`
 }
 
 // --- Computed output type ---

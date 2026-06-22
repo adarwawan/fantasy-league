@@ -14,6 +14,8 @@ func approx(a, b, tol float64) bool {
 	return math.Abs(a-b) <= tol
 }
 
+func ptr(f float64) *float64 { return &f }
+
 // --- poissonCDF (via EstimateLambdaTotal as a proxy) ---
 
 // TestEstimateLambdaTotal_KnownLine verifies that a 2.5 line at 1.70/2.10
@@ -30,8 +32,8 @@ func TestEstimateLambdaTotal_KnownLine(t *testing.T) {
 					Key:        "totals",
 					LastUpdate: time.Now(),
 					Outcomes: []odds.Outcome{
-						{Name: "Over", Description: "2.5", Price: 1.70},
-						{Name: "Under", Description: "2.5", Price: 2.10},
+						{Name: "Over", Point: ptr(2.5), Price: 1.70},
+						{Name: "Under", Point: ptr(2.5), Price: 2.10},
 					},
 				},
 			},
@@ -58,10 +60,10 @@ func TestEstimateLambdaTotal_MultipleLines(t *testing.T) {
 					Key:        "totals",
 					LastUpdate: time.Now(),
 					Outcomes: []odds.Outcome{
-						{Name: "Over", Description: "1.5", Price: 1.30},
-						{Name: "Under", Description: "1.5", Price: 3.20},
-						{Name: "Over", Description: "2.5", Price: 1.70},
-						{Name: "Under", Description: "2.5", Price: 2.10},
+						{Name: "Over", Point: ptr(1.5), Price: 1.30},
+						{Name: "Under", Point: ptr(1.5), Price: 3.20},
+						{Name: "Over", Point: ptr(2.5), Price: 1.70},
+						{Name: "Under", Point: ptr(2.5), Price: 2.10},
 					},
 				},
 			},
@@ -94,8 +96,8 @@ func TestEstimateLambdaTotal_WeightedMedian(t *testing.T) {
 					Key:        "totals",
 					LastUpdate: old,
 					Outcomes: []odds.Outcome{
-						{Name: "Over", Description: "2.5", Price: 4.00},
-						{Name: "Under", Description: "2.5", Price: 1.22},
+						{Name: "Over", Point: ptr(2.5), Price: 4.00},
+						{Name: "Under", Point: ptr(2.5), Price: 1.22},
 					},
 				},
 			},
@@ -108,8 +110,8 @@ func TestEstimateLambdaTotal_WeightedMedian(t *testing.T) {
 					Key:        "totals",
 					LastUpdate: fresh,
 					Outcomes: []odds.Outcome{
-						{Name: "Over", Description: "2.5", Price: 1.90},
-						{Name: "Under", Description: "2.5", Price: 1.90},
+						{Name: "Over", Point: ptr(2.5), Price: 1.90},
+						{Name: "Under", Point: ptr(2.5), Price: 1.90},
 					},
 				},
 			},
@@ -150,16 +152,15 @@ func TestEstimateLambdaTotal_NoTotals(t *testing.T) {
 
 func TestSplitLambda_SumsToTotal(t *testing.T) {
 	bks := bookmakerWithH2H("Portugal", 1.40, 4.50, "DR Congo", 8.00)
-	lHome, lAway := odds.SplitLambda(3.0, bks)
+	lHome, lAway := odds.SplitLambda(3.0, bks, "Portugal", "DR Congo")
 	if !approx(lHome+lAway, 3.0, 1e-9) {
 		t.Errorf("lHome+lAway = %.6f, want 3.0", lHome+lAway)
 	}
 }
 
 func TestSplitLambda_FavouriteScoresMore(t *testing.T) {
-	// Portugal heavy favourite → should have higher λ than DR Congo.
 	bks := bookmakerWithH2H("Portugal", 1.40, 4.50, "DR Congo", 8.00)
-	lHome, lAway := odds.SplitLambda(3.0, bks)
+	lHome, lAway := odds.SplitLambda(3.0, bks, "Portugal", "DR Congo")
 	if lHome <= lAway {
 		t.Errorf("expected lHome (%.4f) > lAway (%.4f) for heavy favourite", lHome, lAway)
 	}
@@ -167,8 +168,7 @@ func TestSplitLambda_FavouriteScoresMore(t *testing.T) {
 
 func TestSplitLambda_EvenOddsEqualSplit(t *testing.T) {
 	bks := bookmakerWithH2H("Brazil", 2.00, 3.00, "Argentina", 2.00)
-	lHome, lAway := odds.SplitLambda(2.5, bks)
-	// Symmetric odds → near-equal split (draw odds dilute but ratio stays 1).
+	lHome, lAway := odds.SplitLambda(2.5, bks, "Brazil", "Argentina")
 	if !approx(lHome, lAway, 0.01) {
 		t.Errorf("expected near-equal split; lHome=%.4f, lAway=%.4f", lHome, lAway)
 	}
@@ -176,7 +176,7 @@ func TestSplitLambda_EvenOddsEqualSplit(t *testing.T) {
 
 func TestSplitLambda_NoH2H_EqualFallback(t *testing.T) {
 	bks := []odds.Bookmaker{{Key: "bk", Markets: []odds.Market{{Key: "totals"}}}}
-	lHome, lAway := odds.SplitLambda(2.0, bks)
+	lHome, lAway := odds.SplitLambda(2.0, bks, "A", "B")
 	if !approx(lHome, 1.0, 1e-9) || !approx(lAway, 1.0, 1e-9) {
 		t.Errorf("expected 1/1 fallback; got %.4f / %.4f", lHome, lAway)
 	}
