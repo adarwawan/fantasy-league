@@ -9,7 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"fantasy-league/internal/config"
 	"fantasy-league/internal/fantasy"
+	"fantasy-league/internal/sources/odds"
 	"fantasy-league/internal/store"
 )
 
@@ -28,6 +30,9 @@ type Store interface {
 	UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) error
 	RecomputeTopNOwnerships(ctx context.Context, gameID string, topNOptions []int, gw int) error
 	RecomputeTeamForm(ctx context.Context, gameID string, gwWindow int) error
+	QueryTeams(ctx context.Context, gameID string) ([]store.TeamRow, error)
+	QueryFixtures(ctx context.Context, gameID string, fromGW, toGW int) ([]store.FixtureRow, error)
+	UpsertMatchOdds(ctx context.Context, rows []store.MatchOddsRow, cache *store.Cache, ttl time.Duration) error
 }
 
 // DeadlineProvider is implemented by sources that can report the next deadline.
@@ -174,5 +179,96 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	}
 
 	slog.Info("sync complete", "game", gameID)
+	return nil
+}
+
+// SyncOdds fetches odds for the given game config, runs the Poisson estimator,
+// maps team names, links fixtures, and persists the results. It is gated by the
+// per-game enabled flag in cfg.
+func (s *Syncer) SyncOdds(ctx context.Context, oddsClient *odds.Client, oddsConfig odds.GameOddsConfig, appCfg config.Config, storeCache *store.Cache) error {
+	gameID := oddsConfig.GameID
+
+	enabled := (gameID == "wcf" && appCfg.WCFOddsEnabled) ||
+		(gameID == "fpl" && appCfg.FPLOddsEnabled)
+	if !enabled {
+		slog.Debug("odds sync disabled", "game", gameID)
+		return nil
+	}
+
+	slog.Info("odds sync start", "game", gameID)
+
+	// Fetch raw odds.
+	rawMatches, err := oddsClient.FetchOdds(ctx, oddsConfig)
+	if err != nil {
+		return fmt.Errorf("FetchOdds (%s): %w", gameID, err)
+	}
+
+	// Poisson estimation.
+	computed := odds.AggregateBookmakers(rawMatches)
+
+	// Load teams from store for name mapping.
+	teamRows, err := s.store.QueryTeams(ctx, gameID)
+	if err != nil {
+		return fmt.Errorf("QueryTeams (%s): %w", gameID, err)
+	}
+	fantasyTeams := make([]fantasy.Team, len(teamRows))
+	for i, t := range teamRows {
+		fantasyTeams[i] = fantasy.Team{
+			ID:        t.ID,
+			GameID:    gameID,
+			Name:      t.Name,
+			ShortName: t.ShortName,
+		}
+	}
+
+	// Map team names.
+	computed = odds.MapTeams(computed, fantasyTeams, gameID)
+	if len(computed) == 0 {
+		slog.Warn("odds sync: no matches resolved after team mapping", "game", gameID)
+		return nil
+	}
+
+	// Load upcoming fixtures for linking.
+	fixtureRows, err := s.store.QueryFixtures(ctx, gameID, 1, 999)
+	if err != nil {
+		return fmt.Errorf("QueryFixtures (%s): %w", gameID, err)
+	}
+	fantasyFixtures := make([]fantasy.Fixture, len(fixtureRows))
+	for i, f := range fixtureRows {
+		fantasyFixtures[i] = fantasy.Fixture{
+			ID:         f.ID,
+			GameID:     gameID,
+			GW:         f.GW,
+			HomeTeamID: f.HomeTeamID,
+			AwayTeamID: f.AwayTeamID,
+		}
+	}
+
+	// Link fixtures.
+	computed = odds.LinkFixtures(computed, fantasyFixtures, oddsConfig)
+
+	// Convert to store rows.
+	storeRows := make([]store.MatchOddsRow, len(computed))
+	for i, m := range computed {
+		storeRows[i] = store.MatchOddsRow{
+			OddsMatchID: m.OddsMatchID,
+			GameID:      gameID,
+			FixtureID:   m.FixtureID,
+			HomeTeam:    m.HomeTeam,
+			AwayTeam:    m.AwayTeam,
+			LambdaHome:  m.LambdaHome,
+			LambdaAway:  m.LambdaAway,
+			HomeCSPct:   m.HomeCSPct,
+			AwayCSPct:   m.AwayCSPct,
+			KickoffTime: m.KickoffTime,
+			FetchedAt:   m.FetchedAt,
+		}
+	}
+
+	if err := s.store.UpsertMatchOdds(ctx, storeRows, storeCache, appCfg.OddsCacheTTL); err != nil {
+		return fmt.Errorf("UpsertMatchOdds (%s): %w", gameID, err)
+	}
+
+	slog.Info("odds sync complete", "game", gameID, "matches", len(storeRows))
 	return nil
 }
