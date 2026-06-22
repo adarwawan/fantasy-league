@@ -4,6 +4,7 @@ import type { PlayersResponse } from '../types/player';
 export interface PlayerQueryParams {
   sort?:      'global_ownership' | 'top_n_ownership' | 'form' | 'price';
   pos?:       'GK' | 'DEF' | 'MID' | 'FWD';
+  min_price?: number;
   max_price?: number;
   top_n?:     number;
 }

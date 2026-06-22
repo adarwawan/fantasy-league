@@ -4,6 +4,7 @@ import { useScatter } from '../hooks/useScatter';
 import { ScatterPlot } from '../components/scatter/ScatterPlot';
 import { AxisSelector, type AxisKey } from '../components/scatter/AxisSelector';
 import { PlayerDrawer } from '../components/players/PlayerDrawer';
+import { ErrorState } from '../components/common/ErrorState';
 import type { Player } from '../types/player';
 
 type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
@@ -31,7 +32,7 @@ export function ScatterPage() {
     ? parseFloat(searchParams.get('max_price')!)
     : 15.0;
 
-  const { data, isLoading, isError } = useScatter(game);
+  const { data, isLoading, isError, refetch } = useScatter(game);
 
   function set(updates: Record<string, string | undefined>) {
     const next = new URLSearchParams(searchParams);
@@ -42,8 +43,11 @@ export function ScatterPage() {
     setSearchParams(next, { replace: true });
   }
 
+  const minPrice = searchParams.has('min_price') ? parseFloat(searchParams.get('min_price')!) : 4;
+
   const filtered: Player[] = (data?.players ?? []).filter(p => {
     if (pos && p.position !== pos) return false;
+    if (p.price < minPrice) return false;
     if (p.price > maxPrice) return false;
     return true;
   });
@@ -57,7 +61,12 @@ export function ScatterPage() {
       <div className="h-[480px] rounded-lg border border-slate-700/50 bg-slate-800/40 animate-pulse" />
     </div>
   );
-  if (isError || !data) return <div className="text-red-500 py-8 text-center">Failed to load scatter data.</div>;
+  if (isError || !data) return (
+    <ErrorState
+      message="Failed to load scatter data. Check your connection and try again."
+      onRetry={() => refetch()}
+    />
+  );
 
   return (
     <>
@@ -98,20 +107,32 @@ export function ScatterPage() {
             </div>
           </div>
 
-          {/* Max price */}
+          {/* Price range */}
           <div>
-            <label className="block text-xs text-slate-400 mb-1">
-              Max price: £{maxPrice.toFixed(1)}m
-            </label>
-            <input
-              type="range"
-              min={4}
-              max={15}
-              step={0.5}
-              value={maxPrice}
-              onChange={e => set({ max_price: e.target.value })}
-              className="w-36 accent-indigo-600"
-            />
+            <label className="block text-xs text-slate-400 mb-1">Price range (£m)</label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={4}
+                max={14.5}
+                step={0.5}
+                value={searchParams.has('min_price') ? parseFloat(searchParams.get('min_price')!) : 4}
+                onChange={e => set({ min_price: e.target.value === '4' ? undefined : e.target.value })}
+                aria-label="Minimum price"
+                className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <span className="text-slate-500 text-xs">–</span>
+              <input
+                type="number"
+                min={4.5}
+                max={15}
+                step={0.5}
+                value={maxPrice}
+                onChange={e => set({ max_price: e.target.value === '15' ? undefined : e.target.value })}
+                aria-label="Maximum price"
+                className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
           </div>
 
           <div className="text-xs text-slate-500 self-end pb-1">

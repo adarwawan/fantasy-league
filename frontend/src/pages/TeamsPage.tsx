@@ -4,6 +4,7 @@ import { useTeams } from '../hooks/useTeams';
 import { usePlayers } from '../hooks/usePlayers';
 import { TeamFormTable } from '../components/teams/TeamFormTable';
 import { SkeletonRow } from '../components/common/SkeletonRow';
+import { ErrorState } from '../components/common/ErrorState';
 
 // expand · TEAM · ATT FORM · DEF FORM · OVR FORM · NEXT 5 GWS
 const TEAM_SKELETON_COLS = ['w-6', 'w-28', 'w-16', 'w-16', 'w-16', 'w-40'];
@@ -15,7 +16,7 @@ export function TeamsPage() {
     document.title = `${game.toUpperCase()} — Teams`;
   }, [game]);
 
-  const { data: teamsData, isLoading: teamsLoading, isError: teamsError } = useTeams(game);
+  const { data: teamsData, isLoading: teamsLoading, isError: teamsError, refetch } = useTeams(game);
   const { data: playersData } = usePlayers(game, {});
 
   if (teamsLoading) {
@@ -36,7 +37,12 @@ export function TeamsPage() {
   }
 
   if (teamsError || !teamsData) {
-    return <div className="text-red-500 py-8 text-center">Failed to load teams.</div>;
+    return (
+      <ErrorState
+        message="Failed to load teams. Check your connection and try again."
+        onRetry={() => refetch()}
+      />
+    );
   }
 
   return (

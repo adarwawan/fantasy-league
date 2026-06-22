@@ -38,10 +38,29 @@ export function PlayerRow({ row, onPlayerClick }: { row: Row<Player>; onPlayerCl
   const diffColor = diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-slate-400';
   const diffSign  = diff > 0 ? '+' : '';
 
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTableRowElement>) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onPlayerClick?.(player);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = e.currentTarget.nextElementSibling as HTMLElement | null;
+      next?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = e.currentTarget.previousElementSibling as HTMLElement | null;
+      prev?.focus();
+    }
+  }
+
   return (
     <tr
-      className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors ${isInjured ? 'opacity-40' : ''} ${onPlayerClick ? 'cursor-pointer' : ''}`}
+      tabIndex={onPlayerClick ? 0 : undefined}
+      role={onPlayerClick ? 'button' : undefined}
+      aria-label={onPlayerClick ? `View ${player.name}` : undefined}
+      className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors focus:outline-none focus:bg-slate-700/40 focus:ring-1 focus:ring-inset focus:ring-indigo-500 ${isInjured ? 'opacity-40' : ''} ${onPlayerClick ? 'cursor-pointer' : ''}`}
       onClick={onPlayerClick ? () => onPlayerClick(player) : undefined}
+      onKeyDown={onPlayerClick ? handleKeyDown : undefined}
     >
       {/* Name + status */}
       <td className="px-3 py-2 text-sm font-medium text-slate-100 whitespace-nowrap">
