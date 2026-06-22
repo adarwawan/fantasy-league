@@ -23,7 +23,7 @@ type Store interface {
 	ResetManagerRanks(ctx context.Context, gameID string) error
 	UpsertManagers(ctx context.Context, managers []fantasy.Manager) error
 	UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) error
-	RecomputeTopNOwnership(ctx context.Context, gameID string, topN int, gw int) error
+	RecomputeTopNOwnerships(ctx context.Context, gameID string, topNOptions []int, gw int) error
 	RecomputeTeamForm(ctx context.Context, gameID string, gwWindow int) error
 }
 
@@ -36,12 +36,11 @@ type Syncer struct {
 	sources      []fantasy.Source
 	store        Store
 	cache        Cache
-	topN         int
 	formGWWindow int
 }
 
-func New(sources []fantasy.Source, store Store, cache Cache, topN int, formGWWindow int) *Syncer {
-	return &Syncer{sources: sources, store: store, cache: cache, topN: topN, formGWWindow: formGWWindow}
+func New(sources []fantasy.Source, store Store, cache Cache, formGWWindow int) *Syncer {
+	return &Syncer{sources: sources, store: store, cache: cache, formGWWindow: formGWWindow}
 }
 
 // RunAll syncs all registered sources in parallel.
@@ -97,8 +96,10 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	}
 	slog.Info("players synced", "game", gameID, "count", len(players))
 
-	// Managers
-	managers, err := src.FetchManagers(ctx, s.topN)
+	// Managers — fetch up to the largest configured tier.
+	topNOptions := src.TopNOptions()
+	topNMax := topNOptions[len(topNOptions)-1]
+	managers, err := src.FetchManagers(ctx, topNMax)
 	if err != nil {
 		return fmt.Errorf("FetchManagers: %w", err)
 	}
@@ -135,9 +136,9 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	}
 	slog.Info("picks synced", "game", gameID, "managers", len(managers), "errors", pickErrs)
 
-	// Top-N ownership recompute
-	if err := s.store.RecomputeTopNOwnership(ctx, gameID, s.topN, gw); err != nil {
-		return fmt.Errorf("RecomputeTopNOwnership: %w", err)
+	// Top-N ownership recompute for every configured tier.
+	if err := s.store.RecomputeTopNOwnerships(ctx, gameID, topNOptions, gw); err != nil {
+		return fmt.Errorf("RecomputeTopNOwnerships: %w", err)
 	}
 
 	// Invalidate cache

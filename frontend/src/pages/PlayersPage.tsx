@@ -131,6 +131,7 @@ export function PlayersPage() {
           {game.toUpperCase()} — Players
         </h1>
         <PlayerFilters
+          game={game}
           params={params}
           onChange={handleChange}
           search={searchInput}

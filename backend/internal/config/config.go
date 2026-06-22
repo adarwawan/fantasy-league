@@ -17,7 +17,6 @@ type Config struct {
 	FPLSyncOnce        bool
 	FPLSyncIntervalMin int
 	FPLLeagueID        int
-	FPLTopNDefault     int
 
 	WCFSyncEnabled bool
 	WCFAuthToken   string
@@ -48,7 +47,6 @@ func Load() Config {
 		FPLSyncOnce:        envBool("FPL_SYNC_ONCE", true),
 		FPLSyncIntervalMin: envInt("FPL_SYNC_INTERVAL_MIN", 30),
 		FPLLeagueID:        envInt("FPL_LEAGUE_ID", 314),
-		FPLTopNDefault:     envInt("FPL_TOP_N_DEFAULT", 10000),
 
 		WCFSyncEnabled: envBool("WCF_SYNC_ENABLED", true),
 		WCFAuthToken:   os.Getenv("WCF_AUTH_TOKEN"),

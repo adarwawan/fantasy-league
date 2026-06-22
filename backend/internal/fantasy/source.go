@@ -9,4 +9,5 @@ type Source interface {
 	FetchManagers(ctx context.Context, topN int) ([]Manager, error)
 	FetchPicks(ctx context.Context, managerID string, gw int) ([]ManagerPick, error)
 	GameID() string
+	TopNOptions() []int
 }

@@ -41,20 +41,20 @@ func main() {
 	// Sources
 	var startupSources, scheduledSources []fantasy.Source
 	if cfg.FPLSyncEnabled {
-		fpl := fplsrc.NewSource(cfg.FPLLeagueID, cfg.FPLTopNDefault)
+		fpl := fplsrc.NewSource(cfg.FPLLeagueID)
 		startupSources = append(startupSources, fpl)
 		if !cfg.FPLSyncOnce {
 			scheduledSources = append(scheduledSources, fpl)
 		}
 	}
 	if cfg.WCFSyncEnabled {
-		wcf := wcfsrc.NewSource(cfg.FPLTopNDefault, cfg.WCFAuthToken)
+		wcf := wcfsrc.NewSource(cfg.WCFAuthToken)
 		startupSources = append(startupSources, wcf)
 		scheduledSources = append(scheduledSources, wcf)
 	}
 
-	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
-	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FPLTopNDefault, cfg.FormGWWindow)
+	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FormGWWindow)
+	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FormGWWindow)
 
 	// Scheduler — daily at 08:00 UTC (recurring sources only)
 	scheduler, err := gocron.NewScheduler()

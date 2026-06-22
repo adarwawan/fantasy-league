@@ -44,8 +44,8 @@ func TestPlayersEndpoint(t *testing.T) {
 	}
 
 	players := []fantasy.Player{
-		{GameID: gameID, ExternalID: 101, Name: "Alpha", TeamID: "1", Position: "MID", Price: 10.5, Form: 8.0, GlobalOwnership: 50.0, TopNOwnership: 70.0, TopNSize: 10000, Status: "available", UpdatedAt: now},
-		{GameID: gameID, ExternalID: 102, Name: "Beta", TeamID: "2", Position: "FWD", Price: 9.0, Form: 5.0, GlobalOwnership: 30.0, TopNOwnership: 20.0, TopNSize: 10000, Status: "available", UpdatedAt: now},
+		{GameID: gameID, ExternalID: 101, Name: "Alpha", TeamID: "1", Position: "MID", Price: 10.5, Form: 8.0, GlobalOwnership: 50.0, Status: "available", UpdatedAt: now},
+		{GameID: gameID, ExternalID: 102, Name: "Beta", TeamID: "2", Position: "FWD", Price: 9.0, Form: 5.0, GlobalOwnership: 30.0, Status: "available", UpdatedAt: now},
 	}
 	if err := pg.UpsertPlayers(ctx, players); err != nil {
 		t.Fatalf("seed players: %v", err)

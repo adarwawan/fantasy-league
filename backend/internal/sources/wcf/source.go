@@ -8,21 +8,25 @@ import (
 	"fantasy-league/internal/fantasy"
 )
 
+// TopNOptions are the supported Top-N tiers for WCF. The API caps at 2 000
+// entries, so the maximum tier is 1 000.
+var TopNOptions = []int{100, 1000}
+
 // Source implements fantasy.Source for the FIFA World Cup Fantasy API.
 // Set WCFSyncEnabled=true only during active World Cup tournaments.
 type Source struct {
 	client   *client
 	leagueID int // unused for WCF (uses global rankings), kept for interface parity
-	topN     int
 }
 
 // NewSource creates a WCF source. cookie is the value of WC_COOKIE from env (WCF_AUTH_TOKEN).
-func NewSource(topN int, cookie string) *Source {
+func NewSource(cookie string) *Source {
 	return &Source{
 		client: newClient(cookie),
-		topN:   topN,
 	}
 }
+
+func (s *Source) TopNOptions() []int { return TopNOptions }
 
 func (s *Source) GameID() string { return gameID }
 
