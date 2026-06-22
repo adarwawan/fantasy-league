@@ -4,6 +4,12 @@ import { usePlayers } from '../hooks/usePlayers';
 import type { PlayerQueryParams } from '../api/players';
 import { PlayerFilters } from '../components/players/PlayerFilters';
 import { PlayerTable } from '../components/players/PlayerTable';
+import { SkeletonRow } from '../components/common/SkeletonRow';
+
+// PLAYER · TEAM · POS · PRICE · FORM · GLOBAL% · TOP-N% · NEXT 5 GWS
+const PLAYER_SKELETON_COLS = [
+  'w-32', 'w-12', 'w-10', 'w-14', 'w-10', 'w-14', 'w-14', 'w-40',
+];
 
 function paramsFromSearch(sp: URLSearchParams): PlayerQueryParams {
   const p: PlayerQueryParams = {};
@@ -43,7 +49,20 @@ export function PlayersPage() {
   }
 
   if (isLoading) {
-    return <div className="text-gray-500 py-8 text-center">Loading players…</div>;
+    return (
+      <div>
+        <h1 className="text-xl font-semibold text-slate-100 mb-4">{game.toUpperCase()} — Players</h1>
+        <div className="overflow-x-auto rounded-lg border border-slate-700/50">
+          <table className="w-full text-sm">
+            <tbody>
+              {Array.from({ length: 10 }).map((_, i) => (
+                <SkeletonRow key={i} cols={PLAYER_SKELETON_COLS} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   }
 
   if (isError || !data) {
@@ -52,7 +71,7 @@ export function PlayersPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-gray-900 mb-4">
+      <h1 className="text-xl font-semibold text-slate-100 mb-4">
         {game.toUpperCase()} — Players
       </h1>
       <PlayerFilters params={params} onChange={handleChange} />

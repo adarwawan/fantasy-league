@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -6,7 +7,6 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { useState } from 'react';
 import type { Team, TeamFixture } from '../../types/team';
 import type { Player } from '../../types/player';
 import { FixtureChip } from '../players/FixtureChip';
@@ -88,8 +88,8 @@ export function TeamFormTable({ teams, players }: Props) {
               .sort((a, b) => posOrder[a.position] - posOrder[b.position] || b.global_ownership - a.global_ownership);
 
             return (
-              <>
-                <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
+              <React.Fragment key={row.id}>
+                <tr className="border-b border-gray-100 hover:bg-gray-50">
                   {row.getVisibleCells().map(cell => {
                     if (cell.column.id === 'expand') {
                       return (
@@ -131,7 +131,7 @@ export function TeamFormTable({ teams, players }: Props) {
                   })}
                 </tr>
                 {isExpanded && (
-                  <tr key={`${row.id}-expand`} className="bg-gray-50 border-b border-gray-200">
+                  <tr className="bg-gray-50 border-b border-gray-200">
                     <td colSpan={columns.length} className="px-6 py-3">
                       {teamPlayers.length === 0 ? (
                         <span className="text-xs text-gray-400">No player data available.</span>
@@ -162,7 +162,7 @@ export function TeamFormTable({ teams, players }: Props) {
                     </td>
                   </tr>
                 )}
-              </>
+              </React.Fragment>
             );
           })}
         </tbody>

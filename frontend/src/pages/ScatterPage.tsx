@@ -46,12 +46,17 @@ export function ScatterPage() {
     return true;
   });
 
-  if (isLoading) return <div className="text-gray-500 py-8 text-center">Loading scatter data…</div>;
+  if (isLoading) return (
+    <div>
+      <h1 className="text-xl font-semibold text-slate-100 mb-4">{game.toUpperCase()} — Scatter Plot</h1>
+      <div className="h-[480px] rounded-lg border border-slate-700/50 bg-slate-800/40 animate-pulse" />
+    </div>
+  );
   if (isError || !data) return <div className="text-red-500 py-8 text-center">Failed to load scatter data.</div>;
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-gray-900 mb-4">
+      <h1 className="text-xl font-semibold text-slate-100 mb-4">
         {game.toUpperCase()} — Scatter Plot
       </h1>
 
