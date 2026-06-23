@@ -54,11 +54,24 @@ func main() {
 		scheduledSources = append(scheduledSources, wcf)
 	}
 
-	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FormGWWindow)
-	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FormGWWindow)
-
 	// Odds client (shared across games).
 	oddsClient := odds.NewClient(cfg.OddsAPIKey, cfg.OddsCacheTTL, cache)
+	oddsDeps := &syncsvc.OddsDeps{
+		Client: oddsClient,
+		Configs: map[string]odds.GameOddsConfig{
+			"wcf": odds.WCFOddsConfig,
+			"fpl": odds.FPLOddsConfig,
+		},
+		Enabled: map[string]bool{
+			"wcf": cfg.WCFOddsEnabled,
+			"fpl": cfg.FPLOddsEnabled,
+		},
+		Cache:    cache,
+		CacheTTL: cfg.OddsCacheTTL,
+	}
+
+	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FormGWWindow).WithOdds(oddsDeps)
+	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FormGWWindow).WithOdds(oddsDeps)
 
 	// Scheduler — daily at 08:00 UTC (recurring sources only)
 	scheduler, err := gocron.NewScheduler()
@@ -68,16 +81,7 @@ func main() {
 	_, err = scheduler.NewJob(
 		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(8, 0, 0))),
 		gocron.NewTask(func() {
-			bgCtx := context.Background()
-			scheduledSyncer.RunAll(bgCtx)
-			if err := scheduledSyncer.SyncOdds(bgCtx, oddsClient, odds.WCFOddsConfig, cfg, cache); err != nil {
-				slog.Error("odds sync failed", "game", "wcf", "err", err)
-			}
-			if !cfg.FPLSyncOnce {
-				if err := scheduledSyncer.SyncOdds(bgCtx, oddsClient, odds.FPLOddsConfig, cfg, cache); err != nil {
-					slog.Error("odds sync failed", "game", "fpl", "err", err)
-				}
-			}
+			scheduledSyncer.RunAll(context.Background())
 		}),
 	)
 	if err != nil {
@@ -86,15 +90,7 @@ func main() {
 	scheduler.Start()
 
 	// Sync on startup (all sources, including once-only)
-	go func() {
-		startupSyncer.RunAll(ctx)
-		if err := startupSyncer.SyncOdds(ctx, oddsClient, odds.WCFOddsConfig, cfg, cache); err != nil {
-			slog.Error("startup odds sync failed", "game", "wcf", "err", err)
-		}
-		if err := startupSyncer.SyncOdds(ctx, oddsClient, odds.FPLOddsConfig, cfg, cache); err != nil {
-			slog.Error("startup odds sync failed", "game", "fpl", "err", err)
-		}
-	}()
+	go startupSyncer.RunAll(ctx)
 
 	// Handlers
 	playersH := handler.NewPlayersHandler(pg, cache)
@@ -130,16 +126,7 @@ func main() {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
-			go func() {
-				bgCtx := context.Background()
-				startupSyncer.RunAll(bgCtx)
-				if err := startupSyncer.SyncOdds(bgCtx, oddsClient, odds.WCFOddsConfig, cfg, cache); err != nil {
-					slog.Error("manual odds sync failed", "game", "wcf", "err", err)
-				}
-				if err := startupSyncer.SyncOdds(bgCtx, oddsClient, odds.FPLOddsConfig, cfg, cache); err != nil {
-					slog.Error("manual odds sync failed", "game", "fpl", "err", err)
-				}
-			}()
+			go startupSyncer.RunAll(context.Background())
 			slog.Info("manual sync triggered", "game", chi.URLParam(r, "game"))
 			w.WriteHeader(http.StatusAccepted)
 			w.Write([]byte("sync triggered"))
