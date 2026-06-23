@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
@@ -14,16 +15,12 @@ type Config struct {
 	RedisURL    string
 	Port        string
 
-	FPLSyncEnabled     bool
-	FPLSyncOnce        bool
-	FPLSyncIntervalMin int
-	FPLLeagueID        int
+	FPLSyncEnabled bool
+	FPLSyncOnce    bool
+	FPLLeagueID    int
 
 	WCFSyncEnabled bool
 	WCFAuthToken   string
-
-	UCLFSyncEnabled bool
-	UCLFAuthToken   string
 
 	FormGWWindow int
 
@@ -36,12 +33,66 @@ type Config struct {
 	CORSAllowedOrigins []string
 }
 
+type coldConfig struct {
+	Server struct {
+		Port int `yaml:"port"`
+	} `yaml:"server"`
+	FPL struct {
+		SyncEnabled bool `yaml:"sync_enabled"`
+		SyncOnce    bool `yaml:"sync_once"`
+		LeagueID    int  `yaml:"league_id"`
+		OddsEnabled bool `yaml:"odds_enabled"`
+	} `yaml:"fpl"`
+	WCF struct {
+		SyncEnabled bool `yaml:"sync_enabled"`
+		OddsEnabled bool `yaml:"odds_enabled"`
+	} `yaml:"wcf"`
+	Odds struct {
+		CacheTTL string `yaml:"cache_ttl"`
+	} `yaml:"odds"`
+	Form struct {
+		GWWindow int `yaml:"gw_window"`
+	} `yaml:"form"`
+}
+
+func loadColdConfig() coldConfig {
+	// defaults — used when config.yaml is missing or a field is absent
+	cc := coldConfig{}
+	cc.Server.Port = 8080
+	cc.FPL.SyncEnabled = true
+	cc.FPL.SyncOnce = true
+	cc.FPL.LeagueID = 314
+	cc.FPL.OddsEnabled = false
+	cc.WCF.SyncEnabled = true
+	cc.WCF.OddsEnabled = true
+	cc.Odds.CacheTTL = "15m"
+	cc.Form.GWWindow = 3
+
+	path := os.Getenv("CONFIG_PATH")
+	if path == "" {
+		path = "config.yaml"
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return cc
+	}
+	defer f.Close()
+	_ = yaml.NewDecoder(f).Decode(&cc)
+	return cc
+}
+
 func Load() Config {
 	_ = godotenv.Load()
+	cc := loadColdConfig()
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	port := strconv.Itoa(cc.Server.Port)
+	if v := os.Getenv("PORT"); v != "" {
+		port = v
+	}
+
+	oddsCacheTTL, _ := time.ParseDuration(cc.Odds.CacheTTL)
+	if oddsCacheTTL == 0 {
+		oddsCacheTTL = 15 * time.Minute
 	}
 
 	return Config{
@@ -49,30 +100,26 @@ func Load() Config {
 		RedisURL:    os.Getenv("REDIS_URL"),
 		Port:        port,
 
-		FPLSyncEnabled:     envBool("FPL_SYNC_ENABLED", true),
-		FPLSyncOnce:        envBool("FPL_SYNC_ONCE", true),
-		FPLSyncIntervalMin: envInt("FPL_SYNC_INTERVAL_MIN", 30),
-		FPLLeagueID:        envInt("FPL_LEAGUE_ID", 314),
+		FPLSyncEnabled: envBoolOr("FPL_SYNC_ENABLED", cc.FPL.SyncEnabled),
+		FPLSyncOnce:    envBoolOr("FPL_SYNC_ONCE", cc.FPL.SyncOnce),
+		FPLLeagueID:    envIntOr("FPL_LEAGUE_ID", cc.FPL.LeagueID),
 
-		WCFSyncEnabled: envBool("WCF_SYNC_ENABLED", true),
+		WCFSyncEnabled: envBoolOr("WCF_SYNC_ENABLED", cc.WCF.SyncEnabled),
 		WCFAuthToken:   os.Getenv("WCF_AUTH_TOKEN"),
 
-		UCLFSyncEnabled: envBool("UCLF_SYNC_ENABLED", false),
-		UCLFAuthToken:   os.Getenv("UCLF_AUTH_TOKEN"),
-
-		FormGWWindow: envInt("FORM_GW_WINDOW", 3),
+		FormGWWindow: envIntOr("FORM_GW_WINDOW", cc.Form.GWWindow),
 
 		OddsAPIKey:     os.Getenv("ODDS_API_KEY"),
-		OddsCacheTTL:   envDuration("ODDS_CACHE_TTL", 15*time.Minute),
-		WCFOddsEnabled: envBool("WCF_ODDS_ENABLED", true),
-		FPLOddsEnabled: envBool("FPL_ODDS_ENABLED", false),
+		OddsCacheTTL:   oddsCacheTTL,
+		WCFOddsEnabled: envBoolOr("WCF_ODDS_ENABLED", cc.WCF.OddsEnabled),
+		FPLOddsEnabled: envBoolOr("FPL_ODDS_ENABLED", cc.FPL.OddsEnabled),
 
 		SyncEndpointSecret: os.Getenv("SYNC_ENDPOINT_SECRET"),
 		CORSAllowedOrigins: corsOrigins(),
 	}
 }
 
-func envBool(key string, def bool) bool {
+func envBoolOr(key string, def bool) bool {
 	v := os.Getenv(key)
 	if v == "" {
 		return def
@@ -84,15 +131,7 @@ func envBool(key string, def bool) bool {
 	return b
 }
 
-func corsOrigins() []string {
-	v := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if v != "" {
-		return strings.Split(v, ",")
-	}
-	return []string{"http://localhost:5173"}
-}
-
-func envInt(key string, def int) int {
+func envIntOr(key string, def int) int {
 	v := os.Getenv(key)
 	if v == "" {
 		return def
@@ -104,14 +143,10 @@ func envInt(key string, def int) int {
 	return i
 }
 
-func envDuration(key string, def time.Duration) time.Duration {
-	v := os.Getenv(key)
-	if v == "" {
-		return def
+func corsOrigins() []string {
+	v := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if v != "" {
+		return strings.Split(v, ",")
 	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		return def
-	}
-	return d
+	return []string{"http://localhost:5173"}
 }

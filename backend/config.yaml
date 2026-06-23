@@ -1,0 +1,18 @@
+server:
+  port: 8080
+
+fpl:
+  sync_enabled: false
+  sync_once: false
+  league_id: 314
+  odds_enabled: false
+
+wcf:
+  sync_enabled: true
+  odds_enabled: true
+
+odds:
+  cache_ttl: 60m
+
+form:
+  gw_window: 3
