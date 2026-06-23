@@ -348,6 +348,15 @@ func (s *Store) UpsertMatchOdds(ctx context.Context, rows []MatchOddsRow, cache 
 	return nil
 }
 
+// DeleteMatchOdds removes all odds rows for the given game.
+func (s *Store) DeleteMatchOdds(ctx context.Context, gameID string) error {
+	_, err := s.db.Exec(ctx, `DELETE FROM match_odds WHERE game_id = $1`, gameID)
+	if err != nil {
+		return fmt.Errorf("delete match_odds (%s): %w", gameID, err)
+	}
+	return nil
+}
+
 // QueryMatchOdds returns match_odds rows for a game filtered to the given
 // gameweeks. The full unfiltered set is cached in Redis under
 // "{gameID}:odds:computed"; GW filtering is applied in Go after the cache hit.

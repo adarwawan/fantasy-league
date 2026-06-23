@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"fantasy-league/internal/config"
 	"fantasy-league/internal/fantasy"
 	"fantasy-league/internal/sources/odds"
 	"fantasy-league/internal/store"
@@ -32,6 +31,7 @@ type Store interface {
 	RecomputeTeamForm(ctx context.Context, gameID string, gwWindow int) error
 	QueryTeams(ctx context.Context, gameID string) ([]store.TeamRow, error)
 	QueryFixtures(ctx context.Context, gameID string, fromGW, toGW int) ([]store.FixtureRow, error)
+	DeleteMatchOdds(ctx context.Context, gameID string) error
 	UpsertMatchOdds(ctx context.Context, rows []store.MatchOddsRow, cache *store.Cache, ttl time.Duration) error
 }
 
@@ -46,15 +46,31 @@ type Cache interface {
 	Set(ctx context.Context, key string, val []byte, ttl time.Duration) error
 }
 
+// OddsDeps bundles the optional odds-sync dependencies. Pass nil to skip odds.
+type OddsDeps struct {
+	Client   *odds.Client
+	Configs  map[string]odds.GameOddsConfig
+	Enabled  map[string]bool
+	Cache    *store.Cache
+	CacheTTL time.Duration
+}
+
 type Syncer struct {
 	sources      []fantasy.Source
 	store        Store
 	cache        Cache
 	formGWWindow int
+	odds         *OddsDeps
 }
 
 func New(sources []fantasy.Source, store Store, cache Cache, formGWWindow int) *Syncer {
 	return &Syncer{sources: sources, store: store, cache: cache, formGWWindow: formGWWindow}
+}
+
+// WithOdds attaches odds-sync dependencies to the syncer.
+func (s *Syncer) WithOdds(o *OddsDeps) *Syncer {
+	s.odds = o
+	return s
 }
 
 // RunAll syncs all registered sources in parallel.
@@ -76,7 +92,7 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	gameID := src.GameID()
 	slog.Info("sync start", "game", gameID)
 
-	// Teams
+	// 1. Teams
 	teams, err := src.FetchTeams(ctx)
 	if err != nil {
 		return fmt.Errorf("FetchTeams: %w", err)
@@ -86,7 +102,7 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	}
 	slog.Info("teams synced", "game", gameID, "count", len(teams))
 
-	// Fixtures
+	// 2. Fixtures
 	fixtures, err := src.FetchFixtures(ctx)
 	if err != nil {
 		return fmt.Errorf("FetchFixtures: %w", err)
@@ -96,11 +112,7 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	}
 	slog.Info("fixtures synced", "game", gameID, "count", len(fixtures))
 
-	if err := s.store.RecomputeTeamForm(ctx, gameID, s.formGWWindow); err != nil {
-		return fmt.Errorf("RecomputeTeamForm: %w", err)
-	}
-
-	// Players
+	// 3. Players
 	players, err := src.FetchPlayers(ctx)
 	if err != nil {
 		return fmt.Errorf("FetchPlayers: %w", err)
@@ -110,22 +122,7 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	}
 	slog.Info("players synced", "game", gameID, "count", len(players))
 
-	// Managers — fetch up to the largest configured tier.
-	topNOptions := src.TopNOptions()
-	topNMax := topNOptions[len(topNOptions)-1]
-	managers, err := src.FetchManagers(ctx, topNMax)
-	if err != nil {
-		return fmt.Errorf("FetchManagers: %w", err)
-	}
-	if err := s.store.ResetManagerRanks(ctx, gameID); err != nil {
-		return fmt.Errorf("ResetManagerRanks: %w", err)
-	}
-	if err := s.store.UpsertManagers(ctx, managers); err != nil {
-		return fmt.Errorf("UpsertManagers: %w", err)
-	}
-	slog.Info("managers synced", "game", gameID, "count", len(managers))
-
-	// Determine current GW
+	// Determine current GW (needed by concurrent steps).
 	gw := 1
 	if gp, ok := src.(GWProvider); ok {
 		if g, err := gp.CurrentGW(ctx); err == nil && g > 0 {
@@ -133,34 +130,87 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 		}
 	}
 
-	// Picks
-	var pickErrs int
-	for _, m := range managers {
-		managerID := strconv.Itoa(m.ExternalID)
-		picks, err := src.FetchPicks(ctx, managerID, gw)
+	// 4. Concurrent: recompute team form | managers+picks+ownership | odds
+	var (
+		wg      sync.WaitGroup
+		concErr [3]error
+	)
+
+	// 4a. Recompute team form
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := s.store.RecomputeTeamForm(ctx, gameID, s.formGWWindow); err != nil {
+			concErr[0] = fmt.Errorf("RecomputeTeamForm: %w", err)
+		}
+	}()
+
+	// 4b. Fetch managers + picks + recompute ownership
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		topNOptions := src.TopNOptions()
+		topNMax := topNOptions[len(topNOptions)-1]
+
+		managers, err := src.FetchManagers(ctx, topNMax)
 		if err != nil {
-			pickErrs++
-			slog.Warn("FetchPicks failed", "game", gameID, "manager", m.ExternalID, "err", err)
-			continue
+			concErr[1] = fmt.Errorf("FetchManagers: %w", err)
+			return
 		}
-		if err := s.store.UpsertPicks(ctx, picks); err != nil {
-			pickErrs++
-			slog.Warn("UpsertPicks failed", "game", gameID, "manager", m.ExternalID, "err", err)
+		if err := s.store.ResetManagerRanks(ctx, gameID); err != nil {
+			concErr[1] = fmt.Errorf("ResetManagerRanks: %w", err)
+			return
+		}
+		if err := s.store.UpsertManagers(ctx, managers); err != nil {
+			concErr[1] = fmt.Errorf("UpsertManagers: %w", err)
+			return
+		}
+		slog.Info("managers synced", "game", gameID, "count", len(managers))
+
+		var pickErrs int
+		for _, m := range managers {
+			managerID := strconv.Itoa(m.ExternalID)
+			picks, err := src.FetchPicks(ctx, managerID, gw)
+			if err != nil {
+				pickErrs++
+				slog.Warn("FetchPicks failed", "game", gameID, "manager", m.ExternalID, "err", err)
+				continue
+			}
+			if err := s.store.UpsertPicks(ctx, picks); err != nil {
+				pickErrs++
+				slog.Warn("UpsertPicks failed", "game", gameID, "manager", m.ExternalID, "err", err)
+			}
+		}
+		slog.Info("picks synced", "game", gameID, "managers", len(managers), "errors", pickErrs)
+
+		if err := s.store.RecomputeTopNOwnerships(ctx, gameID, topNOptions, gw); err != nil {
+			concErr[1] = fmt.Errorf("RecomputeTopNOwnerships: %w", err)
+		}
+	}()
+
+	// 4c. Odds
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := s.syncOdds(ctx, gameID); err != nil {
+			concErr[2] = err
+		}
+	}()
+
+	wg.Wait()
+
+	for _, e := range concErr {
+		if e != nil {
+			return e
 		}
 	}
-	slog.Info("picks synced", "game", gameID, "managers", len(managers), "errors", pickErrs)
 
-	// Top-N ownership recompute for every configured tier.
-	if err := s.store.RecomputeTopNOwnerships(ctx, gameID, topNOptions, gw); err != nil {
-		return fmt.Errorf("RecomputeTopNOwnerships: %w", err)
-	}
-
-	// Invalidate cache
+	// 5. Invalidate cache
 	if err := s.cache.InvalidateGame(ctx, gameID); err != nil {
 		slog.Warn("cache invalidation failed", "game", gameID, "err", err)
 	}
 
-	// Deadline — set after invalidation so it survives the wipe.
+	// 6. Deadline — set after invalidation so it survives the wipe.
 	if dp, ok := src.(DeadlineProvider); ok {
 		dgw, deadline, err := dp.FetchDeadline(ctx)
 		if err != nil {
@@ -182,31 +232,36 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	return nil
 }
 
-// SyncOdds fetches odds for the given game config, runs the Poisson estimator,
-// maps team names, links fixtures, and persists the results. It is gated by the
-// per-game enabled flag in cfg.
-func (s *Syncer) SyncOdds(ctx context.Context, oddsClient *odds.Client, oddsConfig odds.GameOddsConfig, appCfg config.Config, storeCache *store.Cache) error {
-	gameID := oddsConfig.GameID
+// RunOdds runs the odds sync for a single game in isolation (used by the sync-odds CLI).
+func (s *Syncer) RunOdds(ctx context.Context, gameID string) error {
+	return s.syncOdds(ctx, gameID)
+}
 
-	enabled := (gameID == "wcf" && appCfg.WCFOddsEnabled) ||
-		(gameID == "fpl" && appCfg.FPLOddsEnabled)
-	if !enabled {
+// syncOdds is the per-game odds step run inside the concurrent block of run.
+// It is a no-op when odds deps are not configured or the game is disabled.
+func (s *Syncer) syncOdds(ctx context.Context, gameID string) error {
+	o := s.odds
+	if o == nil {
+		return nil
+	}
+	if !o.Enabled[gameID] {
 		slog.Debug("odds sync disabled", "game", gameID)
+		return nil
+	}
+	cfg, ok := o.Configs[gameID]
+	if !ok {
 		return nil
 	}
 
 	slog.Info("odds sync start", "game", gameID)
 
-	// Fetch raw odds.
-	rawMatches, err := oddsClient.FetchOdds(ctx, oddsConfig)
+	rawMatches, err := o.Client.FetchOdds(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("FetchOdds (%s): %w", gameID, err)
 	}
 
-	// Poisson estimation.
 	computed := odds.AggregateBookmakers(rawMatches)
 
-	// Load teams from store for name mapping.
 	teamRows, err := s.store.QueryTeams(ctx, gameID)
 	if err != nil {
 		return fmt.Errorf("QueryTeams (%s): %w", gameID, err)
@@ -221,14 +276,12 @@ func (s *Syncer) SyncOdds(ctx context.Context, oddsClient *odds.Client, oddsConf
 		}
 	}
 
-	// Map team names.
 	computed = odds.MapTeams(computed, fantasyTeams, gameID)
 	if len(computed) == 0 {
 		slog.Warn("odds sync: no matches resolved after team mapping", "game", gameID)
 		return nil
 	}
 
-	// Load upcoming fixtures for linking.
 	fixtureRows, err := s.store.QueryFixtures(ctx, gameID, 1, 999)
 	if err != nil {
 		return fmt.Errorf("QueryFixtures (%s): %w", gameID, err)
@@ -244,10 +297,8 @@ func (s *Syncer) SyncOdds(ctx context.Context, oddsClient *odds.Client, oddsConf
 		}
 	}
 
-	// Link fixtures.
-	computed = odds.LinkFixtures(computed, fantasyFixtures, oddsConfig)
+	computed = odds.LinkFixtures(computed, fantasyFixtures, cfg)
 
-	// Convert to store rows.
 	storeRows := make([]store.MatchOddsRow, len(computed))
 	for i, m := range computed {
 		storeRows[i] = store.MatchOddsRow{
@@ -265,7 +316,10 @@ func (s *Syncer) SyncOdds(ctx context.Context, oddsClient *odds.Client, oddsConf
 		}
 	}
 
-	if err := s.store.UpsertMatchOdds(ctx, storeRows, storeCache, appCfg.OddsCacheTTL); err != nil {
+	if err := s.store.DeleteMatchOdds(ctx, gameID); err != nil {
+		return fmt.Errorf("DeleteMatchOdds (%s): %w", gameID, err)
+	}
+	if err := s.store.UpsertMatchOdds(ctx, storeRows, o.Cache, o.CacheTTL); err != nil {
 		return fmt.Errorf("UpsertMatchOdds (%s): %w", gameID, err)
 	}
 

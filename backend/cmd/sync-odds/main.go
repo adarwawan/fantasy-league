@@ -37,18 +37,20 @@ func main() {
 	}
 
 	oddsClient := odds.NewClient(cfg.OddsAPIKey, cfg.OddsCacheTTL, cache)
-	syncer := syncsvc.New(nil, pg, cache, cfg.FormGWWindow)
+	syncer := syncsvc.New(nil, pg, cache, cfg.FormGWWindow).WithOdds(&syncsvc.OddsDeps{
+		Client: oddsClient,
+		Configs: map[string]odds.GameOddsConfig{
+			"wcf": odds.WCFOddsConfig,
+			"fpl": odds.FPLOddsConfig,
+		},
+		Enabled:  map[string]bool{*game: true},
+		Cache:    cache,
+		CacheTTL: cfg.OddsCacheTTL,
+	})
 
-	var oddsConfig odds.GameOddsConfig
-	switch *game {
-	case "wcf":
-		oddsConfig = odds.WCFOddsConfig
-	case "fpl":
-		oddsConfig = odds.FPLOddsConfig
-	}
-
-	if err := syncer.SyncOdds(ctx, oddsClient, oddsConfig, cfg, cache); err != nil {
-		log.Fatalf("SyncOdds: %v", err)
+	// Wrap in a minimal source so RunAll drives the odds-only path.
+	if err := syncer.RunOdds(ctx, *game); err != nil {
+		log.Fatalf("RunOdds: %v", err)
 	}
 	slog.Info("done", "game", *game)
 }
