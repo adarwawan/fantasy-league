@@ -84,12 +84,18 @@ func (s *Source) CurrentGW(_ context.Context) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("wcf CurrentGW: %w", err)
 	}
+	last := 0
 	for _, r := range rounds {
-		if r.Status == "playing" {
-			return r.ID, nil
+		if r.Status == "playing" || r.Status == "complete" {
+			if r.ID > last {
+				last = r.ID
+			}
 		}
 	}
-	return 0, fmt.Errorf("wcf CurrentGW: no round with status playing")
+	if last == 0 {
+		return 0, fmt.Errorf("wcf CurrentGW: no round with status playing or complete")
+	}
+	return last, nil
 }
 
 // FetchDeadline returns the current GW and the start date of the next scheduled round.
@@ -100,9 +106,8 @@ func (s *Source) FetchDeadline(ctx context.Context) (int, time.Time, error) {
 	}
 	currentGW := 0
 	for _, r := range rounds {
-		if r.Status == "playing" {
+		if (r.Status == "playing" || r.Status == "complete") && r.ID > currentGW {
 			currentGW = r.ID
-			break
 		}
 	}
 	for _, r := range rounds {
