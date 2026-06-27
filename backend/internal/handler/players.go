@@ -38,6 +38,8 @@ type fixtureJSON struct {
 	HA         string    `json:"ha"`
 	Difficulty int       `json:"difficulty"`
 	Kickoff    time.Time `json:"kickoff"`
+	XG         *float64  `json:"xg"`
+	CSPct      *float64  `json:"cs_pct"`
 }
 
 type teamJSON struct {

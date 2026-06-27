@@ -1,22 +1,31 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTeams } from '../hooks/useTeams';
 import { usePlayers } from '../hooks/usePlayers';
 import { TeamFormTable } from '../components/teams/TeamFormTable';
 import { SkeletonRow } from '../components/common/SkeletonRow';
 import { ErrorState } from '../components/common/ErrorState';
+import type { FocusMode } from '../components/players/FixtureChip';
 
-// expand · TEAM · ATT FORM · DEF FORM · OVR FORM · NEXT 5 GWS
 const TEAM_SKELETON_COLS = ['w-6', 'w-28', 'w-16', 'w-16', 'w-16', 'w-40'];
+
+const focusToSort: Record<FocusMode, string> = {
+  attack:  'xg_sum',
+  defense: 'cs_avg',
+  overall: 'ovr_form',
+};
 
 export function TeamsPage() {
   const { game = 'fpl' } = useParams<{ game: string }>();
+  const [focusMode, setFocusMode] = useState<FocusMode>('overall');
+  const [window, setWindow]       = useState(5);
 
   useEffect(() => {
     document.title = `${game.toUpperCase()} — Teams`;
   }, [game]);
 
-  const { data: teamsData, isLoading: teamsLoading, isError: teamsError, refetch } = useTeams(game);
+  const sort = focusToSort[focusMode];
+  const { data: teamsData, isLoading: teamsLoading, isError: teamsError, refetch } = useTeams(game, window, sort);
   const { data: playersData } = usePlayers(game, {});
 
   if (teamsLoading) {
@@ -53,6 +62,10 @@ export function TeamsPage() {
       <TeamFormTable
         teams={teamsData.teams}
         players={playersData?.players ?? []}
+        focusMode={focusMode}
+        window={window}
+        onFocusChange={setFocusMode}
+        onWindowChange={setWindow}
       />
     </div>
   );
