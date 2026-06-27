@@ -14,6 +14,8 @@ type FixtureInfo struct {
 	HA         string    `json:"ha"`
 	Difficulty int       `json:"difficulty"`
 	Kickoff    time.Time `json:"kickoff"`
+	XG         *float64  `json:"xg"`
+	CSPct      *float64  `json:"cs_pct"`
 }
 
 // PlayerRow is the read model returned by QueryPlayers.
@@ -44,6 +46,8 @@ type TeamRow struct {
 	DefForm   float64
 	OvrForm   float64
 	Fixtures  []FixtureInfo
+	XGSum     *float64
+	CSAvg     *float64
 }
 
 // FixtureRow is the read model returned by QueryFixtures.
@@ -59,6 +63,12 @@ type FixtureRow struct {
 	AwayDifficulty int
 	KickoffTime    time.Time
 	Finished       bool
+}
+
+var validTeamSortCols = map[string]string{
+	"xg_sum":   "ta.xg_sum DESC NULLS LAST",
+	"cs_avg":   "ta.cs_avg DESC NULLS LAST",
+	"ovr_form": "t.ovr_form DESC",
 }
 
 var validSortCols = map[string]string{
@@ -165,9 +175,22 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 	return out, rows.Err()
 }
 
-// QueryTeams returns all teams for a game with next-5-fixtures joined.
-func (s *Store) QueryTeams(ctx context.Context, gameID string) ([]TeamRow, error) {
-	q := `
+// QueryTeams returns all teams for a game with next-N-fixtures joined, xG and CS%
+// pulled from match_odds, and aggregate xg_sum / cs_avg over the window.
+// window is clamped to [1, 10] and defaults to 5. sort must be one of
+// "xg_sum", "cs_avg", or "ovr_form" (default).
+func (s *Store) QueryTeams(ctx context.Context, gameID string, window int, sort string) ([]TeamRow, error) {
+	if window < 1 {
+		window = 1
+	} else if window > 10 {
+		window = 10
+	}
+	orderBy, ok := validTeamSortCols[sort]
+	if !ok {
+		orderBy = validTeamSortCols["ovr_form"]
+	}
+
+	q := fmt.Sprintf(`
 		WITH next_gw AS (
 			SELECT COALESCE(MIN(gw), 0) AS gw FROM fixtures WHERE game_id = $1 AND NOT finished
 		),
@@ -175,23 +198,35 @@ func (s *Store) QueryTeams(ctx context.Context, gameID string) ([]TeamRow, error
 			SELECT
 				f.home_team_id AS team_id, f.gw,
 				at.short_name AS opp, 'H' AS ha,
-				f.home_difficulty AS difficulty, f.kickoff_time
+				f.home_difficulty AS difficulty, f.kickoff_time,
+				mo.lambda_home AS xg, mo.home_cs_pct AS cs_pct
 			FROM fixtures f
 			JOIN teams at ON at.id = f.away_team_id
+			LEFT JOIN match_odds mo ON mo.fixture_id = f.id
 			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
 			UNION ALL
 			SELECT
 				f.away_team_id AS team_id, f.gw,
 				ht.short_name AS opp, 'A' AS ha,
-				f.away_difficulty AS difficulty, f.kickoff_time
+				f.away_difficulty AS difficulty, f.kickoff_time,
+				mo.lambda_away AS xg, mo.away_cs_pct AS cs_pct
 			FROM fixtures f
 			JOIN teams ht ON ht.id = f.home_team_id
+			LEFT JOIN match_odds mo ON mo.fixture_id = f.id
 			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
 		),
 		ranked AS (
 			SELECT *, ROW_NUMBER() OVER (PARTITION BY team_id ORDER BY gw) AS rn FROM team_fixtures
 		),
-		top5 AS (SELECT * FROM ranked WHERE rn <= 5),
+		top_n AS (SELECT * FROM ranked WHERE rn <= $2),
+		team_agg AS (
+			SELECT
+				team_id,
+				CASE WHEN COUNT(xg) > 0 THEN SUM(xg) ELSE NULL END AS xg_sum,
+				CASE WHEN COUNT(cs_pct) > 0 THEN AVG(cs_pct) ELSE NULL END AS cs_avg
+			FROM top_n
+			GROUP BY team_id
+		),
 		team_fix AS (
 			SELECT
 				t.id AS team_id,
@@ -199,27 +234,30 @@ func (s *Store) QueryTeams(ctx context.Context, gameID string) ([]TeamRow, error
 					json_agg(
 						json_build_object(
 							'gw', tf.gw, 'opp', tf.opp, 'ha', tf.ha,
-							'difficulty', tf.difficulty, 'kickoff', tf.kickoff_time
+							'difficulty', tf.difficulty, 'kickoff', tf.kickoff_time,
+							'xg', tf.xg, 'cs_pct', tf.cs_pct
 						) ORDER BY tf.gw
 					) FILTER (WHERE tf.team_id IS NOT NULL),
 					'[]'::json
 				) AS fixtures
 			FROM teams t
-			LEFT JOIN top5 tf ON tf.team_id = t.id
+			LEFT JOIN top_n tf ON tf.team_id = t.id
 			WHERE t.game_id = $1
 			GROUP BY t.id
 		)
 		SELECT
 			t.id, t.game_id, t.name, t.short_name,
 			t.att_form, t.def_form, t.ovr_form,
-			tf.fixtures
+			tf.fixtures,
+			ta.xg_sum, ta.cs_avg
 		FROM teams t
 		JOIN team_fix tf ON tf.team_id = t.id
+		LEFT JOIN team_agg ta ON ta.team_id = t.id
 		WHERE t.game_id = $1
-		ORDER BY t.ovr_form DESC
-	`
+		ORDER BY %s
+	`, orderBy)
 
-	rows, err := s.db.Query(ctx, q, gameID)
+	rows, err := s.db.Query(ctx, q, gameID, window)
 	if err != nil {
 		return nil, fmt.Errorf("query teams: %w", err)
 	}
@@ -232,6 +270,7 @@ func (s *Store) QueryTeams(ctx context.Context, gameID string) ([]TeamRow, error
 		if err := rows.Scan(
 			&r.ID, &r.GameID, &r.Name, &r.ShortName,
 			&r.AttForm, &r.DefForm, &r.OvrForm, &fixturesJSON,
+			&r.XGSum, &r.CSAvg,
 		); err != nil {
 			return nil, fmt.Errorf("scan team: %w", err)
 		}

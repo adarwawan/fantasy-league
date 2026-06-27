@@ -13,7 +13,7 @@ import (
 )
 
 type teamStore interface {
-	QueryTeams(ctx context.Context, gameID string) ([]store.TeamRow, error)
+	QueryTeams(ctx context.Context, gameID string, window int, sort string) ([]store.TeamRow, error)
 	QueryFixtures(ctx context.Context, gameID string, fromGW, toGW int) ([]store.FixtureRow, error)
 }
 
@@ -36,6 +36,8 @@ type teamResponseItem struct {
 	DefForm   float64       `json:"def_form"`
 	OvrForm   float64       `json:"ovr_form"`
 	Fixtures  []fixtureJSON `json:"fixtures"`
+	XGSum     *float64      `json:"xg_sum"`
+	CSAvg     *float64      `json:"cs_avg"`
 }
 
 type teamsResponse struct {
@@ -49,7 +51,14 @@ type teamsResponse struct {
 
 func (h *TeamsHandler) List(w http.ResponseWriter, r *http.Request) {
 	game := chi.URLParam(r, "game")
-	cacheKey := store.CacheKey(game, "teams")
+	q := r.URL.Query()
+	window, _ := strconv.Atoi(q.Get("window"))
+	if window == 0 {
+		window = 5
+	}
+	sort := q.Get("sort")
+
+	cacheKey := store.CacheKey(game, "teams", strconv.Itoa(window), sort)
 
 	if cached, _ := h.cache.Get(r.Context(), cacheKey); cached != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -58,7 +67,7 @@ func (h *TeamsHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	teams, err := h.store.QueryTeams(r.Context(), game)
+	teams, err := h.store.QueryTeams(r.Context(), game, window, sort)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "query failed")
 		return
@@ -71,6 +80,7 @@ func (h *TeamsHandler) List(w http.ResponseWriter, r *http.Request) {
 			fixtures[j] = fixtureJSON{
 				GW: f.GW, Opp: f.Opp, HA: f.HA,
 				Difficulty: f.Difficulty, Kickoff: f.Kickoff,
+				XG: f.XG, CSPct: f.CSPct,
 			}
 		}
 		items[i] = teamResponseItem{
@@ -82,6 +92,8 @@ func (h *TeamsHandler) List(w http.ResponseWriter, r *http.Request) {
 			DefForm:   t.DefForm,
 			OvrForm:   t.OvrForm,
 			Fixtures:  fixtures,
+			XGSum:     t.XGSum,
+			CSAvg:     t.CSAvg,
 		}
 	}
 

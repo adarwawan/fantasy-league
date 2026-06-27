@@ -29,7 +29,7 @@ type Store interface {
 	UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) error
 	RecomputeTopNOwnerships(ctx context.Context, gameID string, topNOptions []int, gw int) error
 	RecomputeTeamForm(ctx context.Context, gameID string, gwWindow int) error
-	QueryTeams(ctx context.Context, gameID string) ([]store.TeamRow, error)
+	QueryTeams(ctx context.Context, gameID string, window int, sort string) ([]store.TeamRow, error)
 	QueryFixtures(ctx context.Context, gameID string, fromGW, toGW int) ([]store.FixtureRow, error)
 	DeleteMatchOdds(ctx context.Context, gameID string) error
 	UpsertMatchOdds(ctx context.Context, rows []store.MatchOddsRow, cache *store.Cache, ttl time.Duration) error
@@ -262,7 +262,7 @@ func (s *Syncer) syncOdds(ctx context.Context, gameID string) error {
 
 	computed := odds.AggregateBookmakers(rawMatches)
 
-	teamRows, err := s.store.QueryTeams(ctx, gameID)
+	teamRows, err := s.store.QueryTeams(ctx, gameID, 5, "ovr_form")
 	if err != nil {
 		return fmt.Errorf("QueryTeams (%s): %w", gameID, err)
 	}

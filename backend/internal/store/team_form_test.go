@@ -81,7 +81,7 @@ func TestRecomputeTeamForm(t *testing.T) {
 		t.Fatalf("RecomputeTeamForm: %v", err)
 	}
 
-	rows, err := pg.QueryTeams(ctx, gameID)
+	rows, err := pg.QueryTeams(ctx, gameID, 5, "ovr_form")
 	if err != nil {
 		t.Fatalf("QueryTeams: %v", err)
 	}
