@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -92,12 +94,10 @@ func (h *PlayersHandler) List(w http.ResponseWriter, r *http.Request) {
 	game := chi.URLParam(r, "game")
 	q := r.URL.Query()
 
-	pos := q.Get("pos")
-	sortBy := q.Get("sort")
-	if sortBy == "" {
-		sortBy = "global_ownership"
-	}
-	maxPrice, _ := strconv.ParseFloat(q.Get("max_price"), 64)
+	pos := canonicalPos(q.Get("pos"))
+	sortBy := canonicalPlayerSort(q.Get("sort"))
+	rawPrice, _ := strconv.ParseFloat(q.Get("max_price"), 64)
+	maxPrice := clampMaxPrice(rawPrice)
 	topN, _ := strconv.Atoi(q.Get("top_n"))
 	topN = validTopN(game, topN)
 
@@ -152,6 +152,56 @@ func (h *PlayersHandler) Scatter(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Cache", "MISS")
 	w.Write(b)
+}
+
+// maxPlayerPrice bounds the max_price filter so it can't be used to generate
+// unlimited distinct cache keys. No game has a player priced above this.
+const maxPlayerPrice = 20.0
+
+// validPositions is the finite set of position filters the query accepts. Any
+// other value canonicalizes to "" (no filter) so cache keys stay bounded.
+var validPositions = map[string]bool{"": true, "GK": true, "DEF": true, "MID": true, "FWD": true}
+
+// canonicalPos normalizes the pos filter to a member of validPositions.
+func canonicalPos(pos string) string {
+	pos = strings.ToUpper(strings.TrimSpace(pos))
+	if !validPositions[pos] {
+		return ""
+	}
+	return pos
+}
+
+// validPlayerSorts mirrors the sort keys accepted by store.QueryPlayers. Any
+// other value canonicalizes to the default so cache keys stay bounded.
+var validPlayerSorts = map[string]bool{
+	"global_ownership": true,
+	"top_n_ownership":  true,
+	"form":             true,
+	"price":            true,
+	"name":             true,
+}
+
+// canonicalPlayerSort normalizes the sort param to a known sort key, defaulting
+// to global_ownership. Unknown values already fall back at the query level;
+// canonicalizing here keeps distinct sort values from busting the cache.
+func canonicalPlayerSort(sort string) string {
+	if !validPlayerSorts[sort] {
+		return "global_ownership"
+	}
+	return sort
+}
+
+// clampMaxPrice bounds and quantizes the price filter to 0.1 steps within
+// [0, maxPlayerPrice]. 0 means "no filter". This caps the number of distinct
+// cache keys the filter can produce.
+func clampMaxPrice(v float64) float64 {
+	if v <= 0 {
+		return 0
+	}
+	if v > maxPlayerPrice {
+		v = maxPlayerPrice
+	}
+	return math.Round(v*10) / 10
 }
 
 // topNByGame maps each game to its valid Top-N options (ascending).
