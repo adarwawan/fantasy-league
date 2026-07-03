@@ -40,7 +40,7 @@ interface Props {
 }
 
 function toFixture(tf: Team['fixtures'][number]) {
-  return tf as { gw: number; opp: string; ha: 'H' | 'A'; difficulty: 1 | 2 | 3 | 4 | 5; kickoff: string };
+  return tf as { gw: number; opp: string; ha: 'H' | 'A'; difficulty: 1 | 2 | 3 | 4 | 5; kickoff: string; xg: number | null; cs_pct: number | null };
 }
 
 function FormBadge({ value, invert = false }: { value: number; invert?: boolean }) {

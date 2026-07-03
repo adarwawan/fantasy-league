@@ -51,7 +51,7 @@ export function PlayerCard({ player }: { player: Player }) {
       {/* Fixtures */}
       <div className="flex gap-1 flex-wrap">
         {player.fixtures.slice(0, 5).map((f, i) => (
-          <FixtureChip key={i} fixture={f} />
+          <FixtureChip key={i} fixture={f} xg={f.xg} csPct={f.cs_pct} focusMode="overall" />
         ))}
       </div>
     </div>

@@ -201,6 +201,7 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mus
 			fixtures[j] = fixtureJSON{
 				GW: f.GW, Opp: f.Opp, HA: f.HA,
 				Difficulty: f.Difficulty, Kickoff: f.Kickoff,
+				XG: f.XG, CSPct: f.CSPct,
 			}
 		}
 		players[i] = playerJSON{

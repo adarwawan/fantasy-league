@@ -4,6 +4,8 @@ export interface Fixture {
   ha:         'H' | 'A';
   difficulty: 1 | 2 | 3 | 4 | 5;
   kickoff:    string;
+  xg:         number | null;
+  cs_pct:     number | null;
 }
 
 export interface Player {

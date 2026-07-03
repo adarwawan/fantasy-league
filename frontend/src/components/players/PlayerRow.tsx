@@ -114,7 +114,16 @@ export function PlayerRow({ row, teams, onPlayerClick }: { row: Row<Player>; tea
         <div className="flex gap-1 flex-wrap">
           {player.fixtures.slice(0, 5).map((f, i) => {
               const oppTeam = teams?.find(t => t.short_name === f.opp);
-              return <FixtureChip key={i} fixture={f} oppOvrForm={oppTeam?.ovr_form} />;
+              return (
+                <FixtureChip
+                  key={i}
+                  fixture={f}
+                  xg={f.xg}
+                  csPct={f.cs_pct}
+                  focusMode="overall"
+                  oppOvrForm={oppTeam?.ovr_form}
+                />
+              );
             })}
         </div>
       </td>
