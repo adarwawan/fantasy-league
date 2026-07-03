@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import type { Row } from '@tanstack/react-table';
 import type { Player } from '../../types/player';
 import type { Team } from '../../types/team';
@@ -32,7 +33,17 @@ function OwnershipBar({ value, position, max = 80 }: { value: number; position: 
   );
 }
 
-export function PlayerRow({ row, teams, onPlayerClick }: { row: Row<Player>; teams?: Team[]; onPlayerClick?: (p: Player) => void }) {
+interface PlayerRowProps {
+  row: Row<Player>;
+  teams?: Team[];
+  onPlayerClick?: (p: Player) => void;
+  'data-index'?: number;
+}
+
+export const PlayerRow = forwardRef<HTMLTableRowElement, PlayerRowProps>(function PlayerRow(
+  { row, teams, onPlayerClick, 'data-index': dataIndex },
+  ref,
+) {
   const player = row.original;
   const isInjured = player.status === 'injured';
   const diff = player.top_n_ownership - player.global_ownership;
@@ -56,6 +67,8 @@ export function PlayerRow({ row, teams, onPlayerClick }: { row: Row<Player>; tea
 
   return (
     <tr
+      ref={ref}
+      data-index={dataIndex}
       tabIndex={onPlayerClick ? 0 : undefined}
       role={onPlayerClick ? 'button' : undefined}
       aria-label={onPlayerClick ? `View ${player.name}` : undefined}
@@ -129,4 +142,4 @@ export function PlayerRow({ row, teams, onPlayerClick }: { row: Row<Player>; tea
       </td>
     </tr>
   );
-}
+});

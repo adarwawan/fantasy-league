@@ -11,6 +11,7 @@ import type { Team } from '../../types/team';
 import type { Player } from '../../types/player';
 import { PositionBadge } from '../common/PositionBadge';
 import { FixtureChip, type FocusMode } from '../players/FixtureChip';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const ch = createColumnHelper<Team>();
 
@@ -60,6 +61,12 @@ function FormBadge({ value, invert = false }: { value: number; invert?: boolean 
 
 const posOrder: Record<string, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 };
 
+function inFormPlayers(players: Player[], teamId: string): Player[] {
+  return players
+    .filter(p => p.team.id === teamId && p.form > 1.5)
+    .sort((a, b) => posOrder[a.position] - posOrder[b.position] || b.global_ownership - a.global_ownership);
+}
+
 const FOCUS_OPTIONS: { label: string; value: FocusMode }[] = [
   { label: '⚔ Attack',  value: 'attack'  },
   { label: '🛡 Defense', value: 'defense' },
@@ -67,6 +74,18 @@ const FOCUS_OPTIONS: { label: string; value: FocusMode }[] = [
 ];
 
 const WINDOW_OPTIONS = [3, 5, 8];
+
+// Sortable fields for the mobile sort control (desktop uses column headers).
+function sortOptions(focusMode: FocusMode): { id: string; label: string }[] {
+  return [
+    { id: 'ovr_form', label: 'Form' },
+    { id: 'att_form', label: 'Att'  },
+    { id: 'def_form', label: 'Def'  },
+    ...(focusMode === 'attack'  ? [{ id: 'xg_sum', label: 'xG Sum' }] : []),
+    ...(focusMode === 'defense' ? [{ id: 'cs_avg', label: 'CS Avg' }] : []),
+    { id: 'name', label: 'Team' },
+  ];
+}
 
 function defaultSort(focusMode: FocusMode): SortingState {
   if (focusMode === 'attack')  return [{ id: 'xg_sum',   desc: true }];
@@ -77,6 +96,7 @@ function defaultSort(focusMode: FocusMode): SortingState {
 export function TeamFormTable({ teams, players, focusMode, window, onFocusChange, onWindowChange }: Props) {
   const [sorting, setSorting]   = useState<SortingState>(defaultSort(focusMode));
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const columns = makeColumns(focusMode);
 
@@ -141,6 +161,20 @@ export function TeamFormTable({ teams, players, focusMode, window, onFocusChange
         </div>
       </div>
 
+      {!isDesktop && (
+        <MobileTeamCards
+          rows={table.getRowModel().rows.map(r => r.original)}
+          players={players}
+          focusMode={focusMode}
+          window={window}
+          expanded={expanded}
+          onToggle={toggle}
+          sorting={sorting}
+          setSorting={setSorting}
+        />
+      )}
+
+      {isDesktop && (
       <div className="overflow-x-auto rounded-lg border border-slate-700/50 bg-slate-800/50">
         <table className="min-w-full text-left">
           <thead className="bg-slate-700/40 border-b border-slate-700/50">
@@ -167,9 +201,7 @@ export function TeamFormTable({ teams, players, focusMode, window, onFocusChange
             {table.getRowModel().rows.map(row => {
               const team = row.original;
               const isExpanded = expanded.has(team.id);
-              const teamPlayers = players
-                .filter(p => p.team.id === team.id && p.form > 1.5)
-                .sort((a, b) => posOrder[a.position] - posOrder[b.position] || b.global_ownership - a.global_ownership);
+              const teamPlayers = inFormPlayers(players, team.id);
 
               return (
                 <React.Fragment key={row.id}>
@@ -286,6 +318,148 @@ export function TeamFormTable({ teams, players, focusMode, window, onFocusChange
           {teams.length} teams
         </div>
       </div>
+      )}
+    </div>
+  );
+}
+
+function MobileTeamSortBar({
+  focusMode,
+  sorting,
+  setSorting,
+}: {
+  focusMode: FocusMode;
+  sorting: SortingState;
+  setSorting: (s: SortingState) => void;
+}) {
+  const options = sortOptions(focusMode);
+  const current = sorting[0] ?? { id: 'ovr_form', desc: true };
+
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <label htmlFor="team-sort" className="text-xs text-slate-400">Sort</label>
+      <select
+        id="team-sort"
+        value={current.id}
+        onChange={e => setSorting([{ id: e.target.value, desc: e.target.value !== 'name' }])}
+        className="flex-1 rounded-md border border-slate-600 bg-slate-700/50 px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      >
+        {options.map(o => (
+          <option key={o.id} value={o.id}>{o.label}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={() => setSorting([{ id: current.id, desc: !current.desc }])}
+        aria-label={current.desc ? 'Sorted descending, tap for ascending' : 'Sorted ascending, tap for descending'}
+        className="rounded-md border border-slate-600 bg-slate-700/50 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      >
+        {current.desc ? '↓' : '↑'}
+      </button>
+    </div>
+  );
+}
+
+function MobileTeamCards({
+  rows,
+  players,
+  focusMode,
+  window,
+  expanded,
+  onToggle,
+  sorting,
+  setSorting,
+}: {
+  rows: Team[];
+  players: Player[];
+  focusMode: FocusMode;
+  window: number;
+  expanded: Set<string>;
+  onToggle: (id: string) => void;
+  sorting: SortingState;
+  setSorting: (s: SortingState) => void;
+}) {
+  return (
+    <div>
+      <MobileTeamSortBar focusMode={focusMode} sorting={sorting} setSorting={setSorting} />
+      <div className="space-y-2">
+        {rows.map(team => {
+          const isExpanded = expanded.has(team.id);
+          const teamPlayers = inFormPlayers(players, team.id);
+          return (
+            <div key={team.id} className="rounded-lg border border-slate-700/50 bg-slate-800/50">
+              <button
+                type="button"
+                onClick={() => onToggle(team.id)}
+                aria-expanded={isExpanded}
+                className="w-full px-3 py-2 text-left focus:outline-none focus:ring-1 focus:ring-inset focus:ring-indigo-500 rounded-lg"
+              >
+                {/* Line 1 — name + overall form */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-slate-500 text-xs leading-none">{isExpanded ? '▼' : '▶'}</span>
+                    <span className="text-sm font-semibold text-slate-100 truncate">{team.name}</span>
+                  </div>
+                  <FormBadge value={team.ovr_form} />
+                </div>
+
+                {/* Line 2 — att / def (+ focus metric) */}
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  <span className="text-slate-500">Att</span>
+                  <FormBadge value={team.att_form} />
+                  <span className="text-slate-500">Def</span>
+                  <FormBadge value={team.def_form} invert />
+                  {focusMode === 'attack' && (
+                    <span className="ml-auto tabular-nums text-orange-300">
+                      xG {team.xg_sum !== null ? team.xg_sum.toFixed(2) : '—'}
+                    </span>
+                  )}
+                  {focusMode === 'defense' && (
+                    <span className="ml-auto tabular-nums text-sky-300">
+                      CS {team.cs_avg !== null ? `${team.cs_avg.toFixed(0)}%` : '—'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Line 3 — fixtures */}
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {team.fixtures.slice(0, window).map((tf, i) => (
+                    <FixtureChip
+                      key={i}
+                      fixture={toFixture(tf)}
+                      xg={tf.xg}
+                      csPct={tf.cs_pct}
+                      focusMode={focusMode}
+                      compact
+                    />
+                  ))}
+                </div>
+              </button>
+
+              {isExpanded && (
+                <div className="border-t border-slate-700/50 px-3 py-2">
+                  {teamPlayers.length === 0 ? (
+                    <span className="text-xs text-slate-500">No player data available.</span>
+                  ) : (
+                    <ul className="divide-y divide-slate-700/40">
+                      {teamPlayers.map(p => (
+                        <li key={p.id} className="flex items-center gap-2 py-1.5 text-xs">
+                          <PositionBadge position={p.position} />
+                          <span className="text-slate-200 truncate flex-1">{p.name}</span>
+                          <span className="tabular-nums text-slate-400">£{p.price.toFixed(1)}m</span>
+                          <span className="tabular-nums text-slate-300 w-10 text-right">F {p.form.toFixed(1)}</span>
+                          <span className="tabular-nums text-slate-400 w-12 text-right">{p.global_ownership.toFixed(1)}%</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="px-1 py-2 text-xs text-slate-500">{rows.length} teams</p>
     </div>
   );
 }
