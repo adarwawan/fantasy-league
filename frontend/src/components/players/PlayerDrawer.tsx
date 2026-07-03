@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Player } from '../../types/player';
+import type { GWPoints, Player } from '../../types/player';
 import type { Team } from '../../types/team';
 import { PositionBadge } from '../common/PositionBadge';
 import { FixtureChip } from './FixtureChip';
@@ -14,6 +14,31 @@ interface Props {
   player: Player | null;
   teams?: Team[];
   onClose: () => void;
+}
+
+// RecentPoints renders each recent gameweek as a bar scaled to the player's own
+// best GW, plus the raw score, oldest → newest.
+function RecentPoints({ points }: { points: GWPoints[] }) {
+  const max = Math.max(...points.map(p => p.points), 1);
+  return (
+    <div className="flex items-end justify-between gap-2">
+      {points.map(p => {
+        const color = p.points >= 6 ? 'bg-emerald-500' : p.points >= 3 ? 'bg-sky-500' : 'bg-slate-600';
+        return (
+          <div key={p.gw} className="flex flex-1 flex-col items-center gap-1">
+            <span className="text-xs font-semibold text-slate-100 tabular-nums">{p.points}</span>
+            <div className="flex h-16 w-full items-end">
+              <div
+                className={`w-full rounded-sm ${color}`}
+                style={{ height: `${Math.max((p.points / max) * 100, 4)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-500 tabular-nums">GW{p.gw}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function PlayerDrawer({ player, teams, onClose }: Props) {
@@ -89,6 +114,16 @@ export function PlayerDrawer({ player, teams, onClose }: Props) {
                 <p className="text-xs text-amber-400 mt-2">{player.news}</p>
               )}
             </div>
+
+            {/* Recent points */}
+            {player.recent_points.length > 0 && (
+              <div className="px-4 py-3 border-b border-slate-700">
+                <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-3">
+                  Last {player.recent_points.length} GW points
+                </p>
+                <RecentPoints points={player.recent_points} />
+              </div>
+            )}
 
             {/* Fixture run */}
             <div className="flex-1 overflow-y-auto px-4 py-3">

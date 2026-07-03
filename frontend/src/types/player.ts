@@ -27,6 +27,12 @@ export interface Player {
   news:              string;
   must_have:         boolean;
   fixtures:          Fixture[];
+  recent_points:     GWPoints[];
+}
+
+export interface GWPoints {
+  gw:     number;
+  points: number;
 }
 
 export interface PlayersResponse {
