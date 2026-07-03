@@ -98,6 +98,23 @@ func mapFixtures(raw []fplFixture) []fantasy.Fixture {
 	return fixtures
 }
 
+func mapGWStats(gw int, elements []fplLiveElement) []fantasy.PlayerGWStat {
+	stats := make([]fantasy.PlayerGWStat, 0, len(elements))
+	for _, e := range elements {
+		stats = append(stats, fantasy.PlayerGWStat{
+			GameID:           gameID,
+			PlayerExternalID: e.ID,
+			GW:               gw,
+			Minutes:          e.Stats.Minutes,
+			Points:           e.Stats.TotalPoints,
+			Goals:            e.Stats.GoalsScored,
+			Assists:          e.Stats.Assists,
+			Bonus:            e.Stats.Bonus,
+		})
+	}
+	return stats
+}
+
 func mapManagers(entries []fplStandingEntry) []fantasy.Manager {
 	managers := make([]fantasy.Manager, 0, len(entries))
 	for i, e := range entries {

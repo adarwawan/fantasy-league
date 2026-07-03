@@ -8,7 +8,14 @@ interface Props {
 export function PlayerTooltip({ player, avgFdr }: Props) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm min-w-[180px]">
-      <div className="font-semibold text-gray-900 mb-1">{player.name}</div>
+      <div className="font-semibold text-gray-900 mb-1 flex items-center gap-1.5">
+        {player.name}
+        {player.must_have && (
+          <span className="text-[10px] font-medium text-amber-600 bg-amber-100 rounded px-1 py-px">
+            ★ Must-have
+          </span>
+        )}
+      </div>
       <div className="text-gray-500 text-xs mb-2">
         {player.team.short_name} · {player.position} · £{player.price.toFixed(1)}m
       </div>

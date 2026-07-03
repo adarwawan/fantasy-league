@@ -74,6 +74,15 @@ func (s *Source) FetchPicks(ctx context.Context, managerID string, gw int) ([]fa
 	return mapPicks(extID, gw, resp.Picks), nil
 }
 
+// FetchGWStats returns every player's stat line for a single gameweek.
+func (s *Source) FetchGWStats(ctx context.Context, gw int) ([]fantasy.PlayerGWStat, error) {
+	resp, err := s.client.fetchEventLive(ctx, gw)
+	if err != nil {
+		return nil, fmt.Errorf("fpl FetchGWStats gw=%d: %w", gw, err)
+	}
+	return mapGWStats(gw, resp.Elements), nil
+}
+
 // CurrentGW fetches the bootstrap to determine the active gameweek.
 func (s *Source) CurrentGW(ctx context.Context) (int, error) {
 	boot, err := s.client.fetchBootstrap(ctx)

@@ -24,6 +24,9 @@ type Config struct {
 
 	FormGWWindow int
 
+	// MustHave holds per-game must-have thresholds, keyed by game ID.
+	MustHave map[string]MustHaveConfig
+
 	OddsAPIKey     string
 	OddsCacheTTL   time.Duration
 	WCFOddsEnabled bool
@@ -38,14 +41,16 @@ type coldConfig struct {
 		Port int `yaml:"port"`
 	} `yaml:"server"`
 	FPL struct {
-		SyncEnabled bool `yaml:"sync_enabled"`
-		SyncOnce    bool `yaml:"sync_once"`
-		LeagueID    int  `yaml:"league_id"`
-		OddsEnabled bool `yaml:"odds_enabled"`
+		SyncEnabled bool           `yaml:"sync_enabled"`
+		SyncOnce    bool           `yaml:"sync_once"`
+		LeagueID    int            `yaml:"league_id"`
+		OddsEnabled bool           `yaml:"odds_enabled"`
+		MustHave    MustHaveConfig `yaml:"must_have"`
 	} `yaml:"fpl"`
 	WCF struct {
-		SyncEnabled bool `yaml:"sync_enabled"`
-		OddsEnabled bool `yaml:"odds_enabled"`
+		SyncEnabled bool           `yaml:"sync_enabled"`
+		OddsEnabled bool           `yaml:"odds_enabled"`
+		MustHave    MustHaveConfig `yaml:"must_have"`
 	} `yaml:"wcf"`
 	Odds struct {
 		CacheTTL string `yaml:"cache_ttl"`
@@ -53,6 +58,32 @@ type coldConfig struct {
 	Form struct {
 		GWWindow int `yaml:"gw_window"`
 	} `yaml:"form"`
+}
+
+// MustHaveConfig holds the thresholds for must-have player detection.
+// Each game configures its own set under its yaml section.
+type MustHaveConfig struct {
+	FormWindow    int     `yaml:"form_window"`
+	FormPointsMin int     `yaml:"form_points_min"`
+	FormRatio     float64 `yaml:"form_ratio"`
+	MaxNextFDR    int     `yaml:"max_next_fdr"`
+	TopGK         int     `yaml:"top_gk"`
+	TopDEF        int     `yaml:"top_def"`
+	TopMID        int     `yaml:"top_mid"`
+	TopFWD        int     `yaml:"top_fwd"`
+}
+
+func defaultMustHave() MustHaveConfig {
+	return MustHaveConfig{
+		FormWindow:    5,
+		FormPointsMin: 6,
+		FormRatio:     0.5,
+		MaxNextFDR:    3,
+		TopGK:         4,
+		TopDEF:        8,
+		TopMID:        8,
+		TopFWD:        5,
+	}
 }
 
 func loadColdConfig() coldConfig {
@@ -67,6 +98,8 @@ func loadColdConfig() coldConfig {
 	cc.WCF.OddsEnabled = true
 	cc.Odds.CacheTTL = "15m"
 	cc.Form.GWWindow = 3
+	cc.FPL.MustHave = defaultMustHave()
+	cc.WCF.MustHave = defaultMustHave()
 
 	path := os.Getenv("CONFIG_PATH")
 	if path == "" {
@@ -108,6 +141,11 @@ func Load() Config {
 		WCFAuthToken:   os.Getenv("WCF_AUTH_TOKEN"),
 
 		FormGWWindow: envIntOr("FORM_GW_WINDOW", cc.Form.GWWindow),
+
+		MustHave: map[string]MustHaveConfig{
+			"fpl": cc.FPL.MustHave,
+			"wcf": cc.WCF.MustHave,
+		},
 
 		OddsAPIKey:     os.Getenv("ODDS_API_KEY"),
 		OddsCacheTTL:   oddsCacheTTL,

@@ -23,6 +23,7 @@ export interface Player {
   top_n_size:        number;
   status:            'available' | 'doubt' | 'injured';
   news:              string;
+  must_have:         boolean;
   fixtures:          Fixture[];
 }
 

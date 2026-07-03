@@ -51,9 +51,43 @@ func TestPlayersEndpoint(t *testing.T) {
 		t.Fatalf("seed players: %v", err)
 	}
 
-	// Build handler with no-op cache
+	// Finished GWs 1-5 plus an upcoming easy GW 6 fixture, so Alpha can qualify as must-have.
+	fixtures := make([]fantasy.Fixture, 0, 6)
+	for gw := 1; gw <= 5; gw++ {
+		score := 1
+		fixtures = append(fixtures, fantasy.Fixture{
+			GameID: gameID, ExternalID: gw, GW: gw,
+			HomeTeamID: "1", AwayTeamID: "2",
+			HomeDifficulty: 3, AwayDifficulty: 3,
+			KickoffTime: now.AddDate(0, 0, -7*(6-gw)), Finished: true,
+			HomeScore: &score, AwayScore: &score,
+		})
+	}
+	fixtures = append(fixtures, fantasy.Fixture{
+		GameID: gameID, ExternalID: 6, GW: 6,
+		HomeTeamID: "1", AwayTeamID: "2",
+		HomeDifficulty: 2, AwayDifficulty: 2,
+		KickoffTime: now.AddDate(0, 0, 7), Finished: false,
+	})
+	if err := pg.UpsertFixtures(ctx, fixtures); err != nil {
+		t.Fatalf("seed fixtures: %v", err)
+	}
+
+	// Alpha: 6+ points in 3 of last 5 GWs (must-have). Beta: only 1 hit (not must-have).
+	var stats []fantasy.PlayerGWStat
+	for gw, pts := range map[int]int{1: 8, 2: 2, 3: 7, 4: 6, 5: 3} {
+		stats = append(stats, fantasy.PlayerGWStat{GameID: gameID, PlayerExternalID: 101, GW: gw, Minutes: 90, Points: pts})
+	}
+	for gw, pts := range map[int]int{1: 2, 2: 2, 3: 9, 4: 1, 5: 0} {
+		stats = append(stats, fantasy.PlayerGWStat{GameID: gameID, PlayerExternalID: 102, GW: gw, Minutes: 90, Points: pts})
+	}
+	if err := pg.UpsertPlayerGWStats(ctx, stats); err != nil {
+		t.Fatalf("seed gw stats: %v", err)
+	}
+
+	// Build handler with no-op cache and default must-have thresholds
 	cache := &noopCache{}
-	h := handler.NewPlayersHandler(pg, cache)
+	h := handler.NewPlayersHandler(pg, cache, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/{game}/players", h.List)
@@ -72,6 +106,7 @@ func TestPlayersEndpoint(t *testing.T) {
 		Players []struct {
 			Name            string  `json:"name"`
 			GlobalOwnership float64 `json:"global_ownership"`
+			MustHave        bool    `json:"must_have"`
 		} `json:"players"`
 		Meta struct {
 			Total int `json:"total"`
@@ -86,6 +121,20 @@ func TestPlayersEndpoint(t *testing.T) {
 	// Default sort is global_ownership DESC — Alpha (50) should be first
 	if len(resp.Players) > 0 && resp.Players[0].Name != "Alpha" {
 		t.Errorf("expected Alpha first (highest ownership), got %s", resp.Players[0].Name)
+	}
+	// Alpha: top-owned MID, 3/5 GWs >= 6 pts, next FDR 2, available → must-have.
+	// Beta: only 1/5 GWs >= 6 pts → not must-have.
+	for _, p := range resp.Players {
+		switch p.Name {
+		case "Alpha":
+			if !p.MustHave {
+				t.Errorf("expected Alpha to be must-have")
+			}
+		case "Beta":
+			if p.MustHave {
+				t.Errorf("expected Beta to not be must-have")
+			}
+		}
 	}
 
 	// Cleanup seeded data

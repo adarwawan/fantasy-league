@@ -82,6 +82,29 @@ func (s *Store) UpsertPlayers(ctx context.Context, players []fantasy.Player) err
 	return nil
 }
 
+// UpsertPlayerGWStats upserts per-gameweek player stat lines. PlayerExternalID
+// is resolved to the internal UUID; stats for unknown players are skipped.
+func (s *Store) UpsertPlayerGWStats(ctx context.Context, stats []fantasy.PlayerGWStat) error {
+	for _, st := range stats {
+		_, err := s.db.Exec(ctx, `
+			INSERT INTO player_gw_stats (player_id, game_id, gw, minutes, points, goals, assists, bonus)
+			SELECT p.id, $1, $3, $4, $5, $6, $7, $8
+			FROM players p
+			WHERE p.game_id = $1 AND p.external_id = $2
+			ON CONFLICT (player_id, gw) DO UPDATE SET
+				minutes = EXCLUDED.minutes,
+				points  = EXCLUDED.points,
+				goals   = EXCLUDED.goals,
+				assists = EXCLUDED.assists,
+				bonus   = EXCLUDED.bonus
+		`, st.GameID, st.PlayerExternalID, st.GW, st.Minutes, st.Points, st.Goals, st.Assists, st.Bonus)
+		if err != nil {
+			return fmt.Errorf("upsert gw stat player=%d gw=%d: %w", st.PlayerExternalID, st.GW, err)
+		}
+	}
+	return nil
+}
+
 // UpsertFixtures upserts fixtures. HomeTeamID/AwayTeamID are external team IDs as strings.
 func (s *Store) UpsertFixtures(ctx context.Context, fixtures []fantasy.Fixture) error {
 	for _, f := range fixtures {
@@ -179,6 +202,7 @@ func (s *Store) UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) er
 // DeleteTestGame removes all rows for a game_id. Only for use in tests.
 func (s *Store) DeleteTestGame(ctx context.Context, gameID string) {
 	s.db.Exec(ctx, `DELETE FROM manager_picks WHERE game_id = $1`, gameID)
+	s.db.Exec(ctx, `DELETE FROM player_gw_stats WHERE game_id = $1`, gameID)
 	s.db.Exec(ctx, `DELETE FROM players WHERE game_id = $1`, gameID)
 	s.db.Exec(ctx, `DELETE FROM fixtures WHERE game_id = $1`, gameID)
 	s.db.Exec(ctx, `DELETE FROM managers WHERE game_id = $1`, gameID)

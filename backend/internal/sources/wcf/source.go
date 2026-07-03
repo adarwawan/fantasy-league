@@ -55,6 +55,17 @@ func (s *Source) FetchPlayers(ctx context.Context) ([]fantasy.Player, error) {
 	return mapPlayers(raw), nil
 }
 
+// FetchAllGWStats returns every player's points for all rounds played so far.
+// The WCF API embeds the full per-round points map in players.json, so a
+// single fetch covers all gameweeks.
+func (s *Source) FetchAllGWStats(ctx context.Context) ([]fantasy.PlayerGWStat, error) {
+	raw, err := s.client.fetchPlayers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("wcf FetchAllGWStats: %w", err)
+	}
+	return mapGWStats(raw), nil
+}
+
 func (s *Source) FetchManagers(ctx context.Context, topN int) ([]fantasy.Manager, error) {
 	entries, err := s.client.fetchRankings(ctx, topN)
 	if err != nil {

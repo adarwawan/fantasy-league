@@ -31,6 +31,10 @@ func main() {
 		sources = append(sources, fplsrc.NewSource(cfg.FPLLeagueID))
 	}
 
-	syncer := syncsvc.New(sources, pg, cache, cfg.FormGWWindow)
+	windows := make(map[string]int, len(cfg.MustHave))
+	for game, mh := range cfg.MustHave {
+		windows[game] = mh.FormWindow
+	}
+	syncer := syncsvc.New(sources, pg, cache, cfg.FormGWWindow).WithGWStatsWindows(windows)
 	syncer.RunAll(ctx)
 }

@@ -14,6 +14,7 @@ import (
 	"fantasy-league/internal/config"
 	"fantasy-league/internal/fantasy"
 	"fantasy-league/internal/handler"
+	"fantasy-league/internal/musthave"
 	"fantasy-league/internal/sources/odds"
 	fplsrc "fantasy-league/internal/sources/fpl"
 	wcfsrc "fantasy-league/internal/sources/wcf"
@@ -70,8 +71,10 @@ func main() {
 		CacheTTL: cfg.OddsCacheTTL,
 	}
 
-	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FormGWWindow).WithOdds(oddsDeps)
-	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FormGWWindow).WithOdds(oddsDeps)
+	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FormGWWindow).
+		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg))
+	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FormGWWindow).
+		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg))
 
 	// Scheduler — daily at 08:00 UTC (recurring sources only)
 	scheduler, err := gocron.NewScheduler()
@@ -93,7 +96,7 @@ func main() {
 	go startupSyncer.RunAll(ctx)
 
 	// Handlers
-	playersH := handler.NewPlayersHandler(pg, cache)
+	playersH := handler.NewPlayersHandler(pg, cache, mustHaveConfigs(cfg))
 	teamsH := handler.NewTeamsHandler(pg, cache)
 	oddsH := handler.NewOddsHandler(pg, cache)
 
@@ -144,6 +147,33 @@ func main() {
 	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// mustHaveConfigs converts per-game config thresholds into musthave configs.
+func mustHaveConfigs(cfg config.Config) map[string]musthave.Config {
+	out := make(map[string]musthave.Config, len(cfg.MustHave))
+	for game, mh := range cfg.MustHave {
+		out[game] = musthave.Config{
+			FormWindow:    mh.FormWindow,
+			FormPointsMin: mh.FormPointsMin,
+			FormRatio:     mh.FormRatio,
+			MaxNextFDR:    mh.MaxNextFDR,
+			TopGK:         mh.TopGK,
+			TopDEF:        mh.TopDEF,
+			TopMID:        mh.TopMID,
+			TopFWD:        mh.TopFWD,
+		}
+	}
+	return out
+}
+
+// gwStatsWindows extracts each game's form window for the GW-stats sync step.
+func gwStatsWindows(cfg config.Config) map[string]int {
+	out := make(map[string]int, len(cfg.MustHave))
+	for game, mh := range cfg.MustHave {
+		out[game] = mh.FormWindow
+	}
+	return out
 }
 
 func validateGame(next http.Handler) http.Handler {

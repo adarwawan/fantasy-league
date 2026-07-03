@@ -44,6 +44,19 @@ type Fixture struct {
 	AwayScore      *int
 }
 
+// PlayerGWStat is a player's stat line for one finished (or in-progress) gameweek.
+// PlayerExternalID is the source's player ID; the store resolves it to the internal UUID.
+type PlayerGWStat struct {
+	GameID           string
+	PlayerExternalID int
+	GW               int
+	Minutes          int
+	Points           int
+	Goals            int
+	Assists          int
+	Bonus            int
+}
+
 type Manager struct {
 	ID          string
 	GameID      string
