@@ -72,9 +72,9 @@ func main() {
 	}
 
 	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FormGWWindow).
-		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg))
+		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg)).WithPicksWorkers(cfg.PicksWorkers)
 	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FormGWWindow).
-		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg))
+		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg)).WithPicksWorkers(cfg.PicksWorkers)
 
 	// Scheduler — daily at 08:00 UTC (recurring sources only)
 	scheduler, err := gocron.NewScheduler()

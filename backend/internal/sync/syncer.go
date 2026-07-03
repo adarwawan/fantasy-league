@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"fantasy-league/internal/fantasy"
@@ -18,6 +19,10 @@ import (
 // mustHaveCacheTTL outlives the daily sync cadence so the players endpoints
 // can serve must-have flags from cache without recomputing per request.
 const mustHaveCacheTTL = 48 * time.Hour
+
+// defaultPicksWorkers is the fallback fan-out for FetchPicks when the syncer
+// is not configured with an explicit worker count.
+const defaultPicksWorkers = 10
 
 // GWProvider is implemented by sources that can report the current gameweek.
 type GWProvider interface {
@@ -82,6 +87,7 @@ type Syncer struct {
 	gwStatsWindows map[string]int
 	mustHave       map[string]musthave.Config
 	odds           *OddsDeps
+	picksWorkers   int
 }
 
 func New(sources []fantasy.Source, store Store, cache Cache, formGWWindow int) *Syncer {
@@ -106,6 +112,13 @@ func (s *Syncer) WithMustHave(configs map[string]musthave.Config) *Syncer {
 // WithOdds attaches odds-sync dependencies to the syncer.
 func (s *Syncer) WithOdds(o *OddsDeps) *Syncer {
 	s.odds = o
+	return s
+}
+
+// WithPicksWorkers sets how many managers' picks are fetched in parallel.
+// Values <= 0 fall back to defaultPicksWorkers.
+func (s *Syncer) WithPicksWorkers(n int) *Syncer {
+	s.picksWorkers = n
 	return s
 }
 
@@ -203,20 +216,7 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 		}
 		slog.Info("managers synced", "game", gameID, "count", len(managers))
 
-		var pickErrs int
-		for _, m := range managers {
-			managerID := strconv.Itoa(m.ExternalID)
-			picks, err := src.FetchPicks(ctx, managerID, gw)
-			if err != nil {
-				pickErrs++
-				slog.Warn("FetchPicks failed", "game", gameID, "manager", m.ExternalID, "err", err)
-				continue
-			}
-			if err := s.store.UpsertPicks(ctx, picks); err != nil {
-				pickErrs++
-				slog.Warn("UpsertPicks failed", "game", gameID, "manager", m.ExternalID, "err", err)
-			}
-		}
+		pickErrs := s.syncPicks(ctx, src, gameID, managers, gw)
 		slog.Info("picks synced", "game", gameID, "managers", len(managers), "errors", pickErrs)
 
 		if err := s.store.RecomputeTopNOwnerships(ctx, gameID, topNOptions, gw); err != nil {
@@ -337,6 +337,54 @@ func (s *Syncer) syncGWStats(ctx context.Context, src fantasy.Source, gameID str
 	}
 	slog.Info("player gw stats synced", "game", gameID, "gws", synced, "from", from, "to", currentGW)
 	return nil
+}
+
+// syncPicks fetches each manager's picks for the given gameweek and upserts
+// them, fanning the work out across a pool of workers. The pool size comes from
+// WithPicksWorkers (default defaultPicksWorkers). A failed fetch or upsert for a
+// single manager is logged and counted, never fatal. Returns the error count.
+func (s *Syncer) syncPicks(ctx context.Context, src fantasy.Source, gameID string, managers []fantasy.Manager, gw int) int {
+	workers := s.picksWorkers
+	if workers <= 0 {
+		workers = defaultPicksWorkers
+	}
+	if workers > len(managers) {
+		workers = len(managers)
+	}
+	if workers < 1 {
+		return 0
+	}
+
+	jobs := make(chan fantasy.Manager)
+	var pickErrs int64
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for m := range jobs {
+				managerID := strconv.Itoa(m.ExternalID)
+				picks, err := src.FetchPicks(ctx, managerID, gw)
+				if err != nil {
+					atomic.AddInt64(&pickErrs, 1)
+					slog.Warn("FetchPicks failed", "game", gameID, "manager", m.ExternalID, "err", err)
+					continue
+				}
+				if err := s.store.UpsertPicks(ctx, picks); err != nil {
+					atomic.AddInt64(&pickErrs, 1)
+					slog.Warn("UpsertPicks failed", "game", gameID, "manager", m.ExternalID, "err", err)
+				}
+			}
+		}()
+	}
+
+	for _, m := range managers {
+		jobs <- m
+	}
+	close(jobs)
+	wg.Wait()
+
+	return int(pickErrs)
 }
 
 // computeMustHave returns the sorted must-have player IDs for a game, or nil

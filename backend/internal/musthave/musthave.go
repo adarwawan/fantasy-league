@@ -1,5 +1,6 @@
 // Package musthave flags "must-have" players: highly owned, in form,
-// available, and with a good fixture in the next gameweek.
+// available, and with a good fixture in the next gameweek (or the one after,
+// for players who have already played their current-GW match).
 package musthave
 
 import (
@@ -80,7 +81,9 @@ func ComputeForGame(ctx context.Context, s Store, gameID string, cfg Config) ([]
 //   - global ownership ranks inside the per-position cutoff
 //   - scored >= FormPointsMin in at least FormRatio of the gwsCounted
 //     inspected GWs (minimum 1 hit)
-//   - has a fixture in nextGW with difficulty <= MaxNextFDR
+//   - has a fixture in nextGW or nextGW+1 with difficulty <= MaxNextFDR
+//     (nextGW+1 covers players who already played their nextGW match, since
+//     Fixtures only holds unplayed games)
 //   - status is available
 //
 // pool must contain every player in the game so ownership ranks are computed
@@ -157,10 +160,13 @@ func ownershipRanks(pool []store.PlayerOwnership) map[string]int {
 	return ranks
 }
 
-// hasGoodFixture reports whether any fixture in nextGW is at or below maxFDR.
+// hasGoodFixture reports whether the player has a good upcoming fixture at or
+// below maxFDR. Fixtures holds only unplayed games, so a player who has already
+// played their nextGW match has their earliest unplayed fixture in nextGW+1.
+// To treat such players fairly we consider fixtures in nextGW and nextGW+1.
 func hasGoodFixture(fixtures []store.FixtureInfo, nextGW, maxFDR int) bool {
 	for _, f := range fixtures {
-		if f.GW == nextGW && f.Difficulty <= maxFDR {
+		if (f.GW == nextGW || f.GW == nextGW+1) && f.Difficulty <= maxFDR {
 			return true
 		}
 	}

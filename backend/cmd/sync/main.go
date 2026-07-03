@@ -47,6 +47,6 @@ func main() {
 			TopFWD:        mh.TopFWD,
 		}
 	}
-	syncer := syncsvc.New(sources, pg, cache, cfg.FormGWWindow).WithGWStatsWindows(windows).WithMustHave(mustHave)
+	syncer := syncsvc.New(sources, pg, cache, cfg.FormGWWindow).WithGWStatsWindows(windows).WithMustHave(mustHave).WithPicksWorkers(cfg.PicksWorkers)
 	syncer.RunAll(ctx)
 }

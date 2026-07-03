@@ -43,7 +43,7 @@ func TestCompute_failsEachCondition(t *testing.T) {
 		nextGW int
 	}{
 		{"unavailable", store.PlayerRow{ID: "a", Position: "MID", Status: "injured", Fixtures: []store.FixtureInfo{fixture(6, 2)}}, goodPoints, 6},
-		{"no next fixture", candidate("a", "MID", fixture(7, 2)), goodPoints, 6},
+		{"no next fixture", candidate("a", "MID", fixture(8, 2)), goodPoints, 6},
 		{"hard fixture", candidate("a", "MID", fixture(6, 4)), goodPoints, 6},
 		{"bad form", candidate("a", "MID", fixture(6, 2)), map[string][]int{"a": {8, 5, 5, 0, 0}}, 6},
 		{"no points at all", candidate("a", "MID", fixture(6, 2)), map[string][]int{}, 6},
@@ -121,6 +121,19 @@ func TestCompute_doubleGameweek(t *testing.T) {
 	flags := Compute(cands, pool, points, 5, 6, testConfig())
 	if !flags["a"] {
 		t.Errorf("expected a to be must-have via easier DGW fixture")
+	}
+}
+
+func TestCompute_nextGWAlreadyPlayed(t *testing.T) {
+	// Player already played their nextGW (6) match, so Fixtures starts at 7
+	// (nextGW+1). A good fixture there still qualifies them.
+	cands := []store.PlayerRow{candidate("a", "MID", fixture(7, 2))}
+	pool := []store.PlayerOwnership{{PlayerID: "a", Position: "MID", GlobalOwnership: 50}}
+	points := map[string][]int{"a": {8, 8, 8, 8, 8}}
+
+	flags := Compute(cands, pool, points, 5, 6, testConfig())
+	if !flags["a"] {
+		t.Errorf("expected a to be must-have via nextGW+1 fixture")
 	}
 }
 
