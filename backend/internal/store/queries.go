@@ -261,6 +261,46 @@ func (s *Store) QueryRecentGWPoints(ctx context.Context, gameID string, window i
 	return points, len(gws), rows.Err()
 }
 
+// GWPoints is a single gameweek's points for a player.
+type GWPoints struct {
+	GW     int `json:"gw"`
+	Points int `json:"points"`
+}
+
+// QueryRecentGWPointsByGW returns each player's points for the last `window`
+// finished gameweeks of a game, ordered oldest → newest so callers can render
+// them left-to-right. Only gameweeks a player has a stats row for are included.
+func (s *Store) QueryRecentGWPointsByGW(ctx context.Context, gameID string, window int) (map[string][]GWPoints, error) {
+	rows, err := s.db.Query(ctx, `
+		WITH recent AS (
+			SELECT DISTINCT gw FROM fixtures
+			WHERE game_id = $1 AND finished
+			ORDER BY gw DESC
+			LIMIT $2
+		)
+		SELECT s.player_id, s.gw, COALESCE(s.points, 0)
+		FROM player_gw_stats s
+		JOIN recent r ON r.gw = s.gw
+		WHERE s.game_id = $1
+		ORDER BY s.player_id, s.gw
+	`, gameID, window)
+	if err != nil {
+		return nil, fmt.Errorf("query recent gw points by gw: %w", err)
+	}
+	defer rows.Close()
+
+	out := make(map[string][]GWPoints)
+	for rows.Next() {
+		var playerID string
+		var gp GWPoints
+		if err := rows.Scan(&playerID, &gp.GW, &gp.Points); err != nil {
+			return nil, fmt.Errorf("scan recent gw points by gw: %w", err)
+		}
+		out[playerID] = append(out[playerID], gp)
+	}
+	return out, rows.Err()
+}
+
 // QueryTeams returns all teams for a game with next-N-fixtures joined, xG and CS%
 // pulled from match_odds, and aggregate xg_sum / cs_avg over the window.
 // window is clamped to [1, 10] and defaults to 5. sort must be one of

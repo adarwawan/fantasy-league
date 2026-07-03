@@ -13,8 +13,12 @@ import (
 	"fantasy-league/internal/store"
 )
 
+// recentPointsWindow is how many finished gameweeks of points to show per player.
+const recentPointsWindow = 5
+
 type playerStore interface {
 	QueryPlayers(ctx context.Context, gameID, pos string, maxPrice float64, sort string, topN int) ([]store.PlayerRow, error)
+	QueryRecentGWPointsByGW(ctx context.Context, gameID string, window int) (map[string][]store.GWPoints, error)
 	CurrentGW(ctx context.Context, gameID string) (int, error)
 }
 
@@ -63,6 +67,12 @@ type playerJSON struct {
 	News            string        `json:"news"`
 	MustHave        bool          `json:"must_have"`
 	Fixtures        []fixtureJSON `json:"fixtures"`
+	RecentPoints    []gwPointsJSON `json:"recent_points"`
+}
+
+type gwPointsJSON struct {
+	GW     int `json:"gw"`
+	Points int `json:"points"`
 }
 
 type metaJSON struct {
@@ -106,7 +116,7 @@ func (h *PlayersHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	gw, _ := h.store.CurrentGW(r.Context(), game)
 
-	resp := buildPlayersResponse(game, gw, topN, players, h.mustHaveFlags(r.Context(), game))
+	resp := buildPlayersResponse(game, gw, topN, players, h.mustHaveFlags(r.Context(), game), h.recentPoints(r.Context(), game))
 	b, _ := json.Marshal(resp)
 	h.cache.Set(r.Context(), cacheKey, b, 30*time.Minute)
 
@@ -135,7 +145,7 @@ func (h *PlayersHandler) Scatter(w http.ResponseWriter, r *http.Request) {
 	}
 	gw, _ := h.store.CurrentGW(r.Context(), game)
 
-	resp := buildPlayersResponse(game, gw, scatterTopN, players, h.mustHaveFlags(r.Context(), game))
+	resp := buildPlayersResponse(game, gw, scatterTopN, players, h.mustHaveFlags(r.Context(), game), h.recentPoints(r.Context(), game))
 	b, _ := json.Marshal(resp)
 	h.cache.Set(r.Context(), cacheKey, b, 30*time.Minute)
 
@@ -193,7 +203,19 @@ func (h *PlayersHandler) mustHaveFlags(ctx context.Context, game string) map[str
 	return flags
 }
 
-func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mustHave map[string]bool) playersResponse {
+// recentPoints returns each player's points over the last few finished
+// gameweeks. Like must-have stars this is auxiliary, so any error degrades to
+// no history rather than failing the request.
+func (h *PlayersHandler) recentPoints(ctx context.Context, game string) map[string][]store.GWPoints {
+	pts, err := h.store.QueryRecentGWPointsByGW(ctx, game, recentPointsWindow)
+	if err != nil {
+		slog.Warn("recent points: query failed", "game", game, "err", err)
+		return nil
+	}
+	return pts
+}
+
+func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mustHave map[string]bool, recent map[string][]store.GWPoints) playersResponse {
 	players := make([]playerJSON, len(rows))
 	for i, r := range rows {
 		fixtures := make([]fixtureJSON, len(r.Fixtures))
@@ -203,6 +225,10 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mus
 				Difficulty: f.Difficulty, Kickoff: f.Kickoff,
 				XG: f.XG, CSPct: f.CSPct,
 			}
+		}
+		recentPts := make([]gwPointsJSON, len(recent[r.ID]))
+		for j, gp := range recent[r.ID] {
+			recentPts[j] = gwPointsJSON{GW: gp.GW, Points: gp.Points}
 		}
 		players[i] = playerJSON{
 			ID:              r.ID,
@@ -218,6 +244,7 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mus
 			News:            r.News,
 			MustHave:        mustHave[r.ID],
 			Fixtures:        fixtures,
+			RecentPoints:    recentPts,
 		}
 	}
 	return playersResponse{
