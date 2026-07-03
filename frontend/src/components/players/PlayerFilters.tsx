@@ -1,5 +1,8 @@
-import { type RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import type { PlayerQueryParams } from '../../api/players';
+
+const PRICE_MIN = 4.0;
+const PRICE_MAX = 15.0;
 
 type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
 const POSITIONS: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
@@ -28,17 +31,30 @@ interface Props {
 export function PlayerFilters({ game, params, onChange, search, onSearch, searchRef }: Props) {
   const topNOptions = TOP_N_OPTIONS[game] ?? TOP_N_OPTIONS['fpl'];
   const topN     = params.top_n     ?? topNOptions[topNOptions.length - 1];
-  const minPrice = params.min_price ?? 4.0;
-  const maxPrice = params.max_price ?? 15.0;
+  const minPrice = params.min_price ?? PRICE_MIN;
+  const maxPrice = params.max_price ?? PRICE_MAX;
 
-  function handleMin(raw: string) {
+  // Local draft state so typing doesn't apply the filter on every keystroke;
+  // committed on blur / Enter. Re-sync when the applied params change externally.
+  const [minDraft, setMinDraft] = useState(String(minPrice));
+  const [maxDraft, setMaxDraft] = useState(String(maxPrice));
+  useEffect(() => { setMinDraft(String(minPrice)); }, [minPrice]);
+  useEffect(() => { setMaxDraft(String(maxPrice)); }, [maxPrice]);
+
+  function commitMin(raw: string) {
     const v = parseFloat(raw);
-    if (!isNaN(v)) onChange({ ...params, min_price: Math.min(v, maxPrice - 0.5) });
+    if (isNaN(v)) { setMinDraft(String(minPrice)); return; }
+    const clamped = Math.min(Math.max(v, PRICE_MIN), maxPrice - 0.5);
+    setMinDraft(String(clamped));
+    onChange({ ...params, min_price: clamped });
   }
 
-  function handleMax(raw: string) {
+  function commitMax(raw: string) {
     const v = parseFloat(raw);
-    if (!isNaN(v)) onChange({ ...params, max_price: Math.max(v, minPrice + 0.5) });
+    if (isNaN(v)) { setMaxDraft(String(maxPrice)); return; }
+    const clamped = Math.max(Math.min(v, PRICE_MAX), minPrice + 0.5);
+    setMaxDraft(String(clamped));
+    onChange({ ...params, max_price: clamped });
   }
 
   return (
@@ -92,22 +108,26 @@ export function PlayerFilters({ game, params, onChange, search, onSearch, search
         <div className="flex items-center gap-1.5">
           <input
             type="number"
-            min={4}
-            max={14.5}
+            min={PRICE_MIN}
+            max={PRICE_MAX - 0.5}
             step={0.5}
-            value={minPrice}
-            onChange={e => handleMin(e.target.value)}
+            value={minDraft}
+            onChange={e => setMinDraft(e.target.value)}
+            onBlur={e => commitMin(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
             aria-label="Minimum price"
             className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />
           <span className="text-slate-500 text-xs">–</span>
           <input
             type="number"
-            min={4.5}
-            max={15}
+            min={PRICE_MIN + 0.5}
+            max={PRICE_MAX}
             step={0.5}
-            value={maxPrice}
-            onChange={e => handleMax(e.target.value)}
+            value={maxDraft}
+            onChange={e => setMaxDraft(e.target.value)}
+            onBlur={e => commitMax(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
             aria-label="Maximum price"
             className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
           />

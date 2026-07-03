@@ -38,15 +38,33 @@ const tierColours: Record<'easy' | 'medium' | 'hard', { bg: string; text: string
   hard:   { bg: 'bg-red-200',    text: 'text-red-900'    },
 };
 
+// Dark-card friendly styling for the compact chip, keyed by the Tailwind colour
+// family of the resolved (light-fill) chip background. Tinted bg + bright text
+// so difficulty is clearly differentiated without a saturated block.
+const compactTone: Record<string, { bg: string; text: string }> = {
+  green:  { bg: 'bg-emerald-500/20', text: 'text-emerald-300' },
+  teal:   { bg: 'bg-teal-500/20',    text: 'text-teal-300'    },
+  amber:  { bg: 'bg-amber-500/20',   text: 'text-amber-300'   },
+  orange: { bg: 'bg-orange-500/20',  text: 'text-orange-300'  },
+  red:    { bg: 'bg-red-500/20',     text: 'text-red-300'     },
+};
+
+function compactStyle(bgClass: string): { bg: string; text: string } {
+  const family = bgClass.replace('bg-', '').split('-')[0];
+  return compactTone[family] ?? compactTone.amber;
+}
+
 interface FixtureChipProps {
   fixture:      Fixture;
   xg?:          number | null;
   csPct?:       number | null;
   focusMode?:   FocusMode;
   oppOvrForm?:  number;
+  /** Compact single-line variant: difficulty shown as a left accent, no xG/CS. */
+  compact?:     boolean;
 }
 
-export function FixtureChip({ fixture, xg, csPct, focusMode = 'overall', oppOvrForm }: FixtureChipProps) {
+export function FixtureChip({ fixture, xg, csPct, focusMode = 'overall', oppOvrForm, compact }: FixtureChipProps) {
   const resolvedXG    = xg   ?? null;
   const resolvedCSPct = csPct ?? null;
 
@@ -62,6 +80,19 @@ export function FixtureChip({ fixture, xg, csPct, focusMode = 'overall', oppOvrF
   }
 
   const hasOdds = resolvedXG !== null && resolvedCSPct !== null;
+
+  if (compact) {
+    const tone = compactStyle(colours.bg);
+    return (
+      <span
+        className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] leading-tight ${tone.bg}`}
+        title={`GW${fixture.gw} · ${fixture.opp} ${fixture.ha === 'H' ? 'Home' : 'Away'}${hasOdds ? ` · xG ${resolvedXG!.toFixed(2)} · CS ${resolvedCSPct!.toFixed(0)}%` : ''}`}
+      >
+        <span className={`font-bold ${tone.text}`}>{fixture.opp} {fixture.ha}</span>
+        <span className="ml-1 text-slate-400">GW{fixture.gw}</span>
+      </span>
+    );
+  }
   const xgDim   = hasOdds && focusMode === 'defense';
   const csDim   = hasOdds && focusMode === 'attack';
 
