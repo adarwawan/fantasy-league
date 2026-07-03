@@ -96,7 +96,7 @@ export function PlayerDrawer({ player, teams, onClose }: Props) {
               <div className="flex flex-col gap-2">
                 {player.fixtures.map((f, i) => (
                   <div key={i} className="flex items-center justify-between">
-                    <FixtureChip fixture={f} oppOvrForm={teams?.find(t => t.short_name === f.opp)?.ovr_form} />
+                    <FixtureChip fixture={f} xg={f.xg} csPct={f.cs_pct} focusMode="overall" oppOvrForm={teams?.find(t => t.short_name === f.opp)?.ovr_form} />
                     <span className="text-xs text-slate-500">{new Date(f.kickoff).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                   </div>
                 ))}

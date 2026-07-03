@@ -104,17 +104,21 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			SELECT
 				f.home_team_id AS team_id, f.gw,
 				at.short_name AS opp, 'H' AS ha,
-				f.home_difficulty AS difficulty, f.kickoff_time
+				f.home_difficulty AS difficulty, f.kickoff_time,
+				mo.lambda_home AS xg, mo.home_cs_pct AS cs_pct
 			FROM fixtures f
 			JOIN teams at ON at.id = f.away_team_id
+			LEFT JOIN match_odds mo ON mo.fixture_id = f.id
 			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
 			UNION ALL
 			SELECT
 				f.away_team_id AS team_id, f.gw,
 				ht.short_name AS opp, 'A' AS ha,
-				f.away_difficulty AS difficulty, f.kickoff_time
+				f.away_difficulty AS difficulty, f.kickoff_time,
+				mo.lambda_away AS xg, mo.away_cs_pct AS cs_pct
 			FROM fixtures f
 			JOIN teams ht ON ht.id = f.home_team_id
+			LEFT JOIN match_odds mo ON mo.fixture_id = f.id
 			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
 		),
 		ranked AS (
@@ -128,7 +132,8 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 					json_agg(
 						json_build_object(
 							'gw', tf.gw, 'opp', tf.opp, 'ha', tf.ha,
-							'difficulty', tf.difficulty, 'kickoff', tf.kickoff_time
+							'difficulty', tf.difficulty, 'kickoff', tf.kickoff_time,
+							'xg', tf.xg, 'cs_pct', tf.cs_pct
 						) ORDER BY tf.gw
 					) FILTER (WHERE tf.team_id IS NOT NULL),
 					'[]'::json
