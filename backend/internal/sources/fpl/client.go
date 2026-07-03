@@ -105,6 +105,21 @@ type fplStandingEntry struct {
 	Rank      int    `json:"rank"`
 }
 
+type eventLiveResponse struct {
+	Elements []fplLiveElement `json:"elements"`
+}
+
+type fplLiveElement struct {
+	ID    int `json:"id"`
+	Stats struct {
+		Minutes     int `json:"minutes"`
+		TotalPoints int `json:"total_points"`
+		GoalsScored int `json:"goals_scored"`
+		Assists     int `json:"assists"`
+		Bonus       int `json:"bonus"`
+	} `json:"stats"`
+}
+
 type picksResponse struct {
 	Picks []fplPick `json:"picks"`
 }
@@ -146,6 +161,11 @@ func (c *client) fetchLeagueStandings(ctx context.Context, leagueID, maxManagers
 		all = all[:maxManagers]
 	}
 	return all, nil
+}
+
+func (c *client) fetchEventLive(ctx context.Context, gw int) (*eventLiveResponse, error) {
+	var r eventLiveResponse
+	return &r, c.get(ctx, fmt.Sprintf("/event/%d/live/", gw), &r)
 }
 
 func (c *client) fetchPicks(ctx context.Context, managerID, gw int) (*picksResponse, error) {

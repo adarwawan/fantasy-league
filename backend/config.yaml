@@ -1,15 +1,39 @@
 server:
   port: 8080
 
+# must_have (per game): a player is starred when all conditions hold —
+# top-K owned for their position, >= form_points_min in >= form_ratio of the
+# last form_window finished GWs (adaptive when fewer GWs have been played),
+# next-GW FDR <= max_next_fdr, and available.
+# Note: WCF fixtures always carry FDR 3, so max_next_fdr < 3 disables stars there.
+
 fpl:
   sync_enabled: false
   sync_once: false
   league_id: 314
   odds_enabled: false
+  must_have:
+    form_window: 5
+    form_points_min: 6
+    form_ratio: 0.5
+    max_next_fdr: 3
+    top_gk: 4
+    top_def: 8
+    top_mid: 8
+    top_fwd: 5
 
 wcf:
   sync_enabled: true
   odds_enabled: true
+  must_have:
+    form_window: 5
+    form_points_min: 6
+    form_ratio: 0.5
+    max_next_fdr: 3
+    top_gk: 4
+    top_def: 8
+    top_mid: 8
+    top_fwd: 5
 
 odds:
   cache_ttl: 60m

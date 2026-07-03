@@ -19,11 +19,24 @@ type GWProvider interface {
 	CurrentGW(ctx context.Context) (int, error)
 }
 
+// GWStatsProvider is implemented by sources that can report per-player
+// stat lines for a single gameweek (used for must-have detection).
+type GWStatsProvider interface {
+	FetchGWStats(ctx context.Context, gw int) ([]fantasy.PlayerGWStat, error)
+}
+
+// AllGWStatsProvider is implemented by sources whose API returns stat lines
+// for every gameweek in a single call. It takes precedence over GWStatsProvider.
+type AllGWStatsProvider interface {
+	FetchAllGWStats(ctx context.Context) ([]fantasy.PlayerGWStat, error)
+}
+
 // Store is the subset of store.Store used by the syncer.
 type Store interface {
 	UpsertTeams(ctx context.Context, teams []fantasy.Team) error
 	UpsertFixtures(ctx context.Context, fixtures []fantasy.Fixture) error
 	UpsertPlayers(ctx context.Context, players []fantasy.Player) error
+	UpsertPlayerGWStats(ctx context.Context, stats []fantasy.PlayerGWStat) error
 	ResetManagerRanks(ctx context.Context, gameID string) error
 	UpsertManagers(ctx context.Context, managers []fantasy.Manager) error
 	UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) error
@@ -56,15 +69,24 @@ type OddsDeps struct {
 }
 
 type Syncer struct {
-	sources      []fantasy.Source
-	store        Store
-	cache        Cache
-	formGWWindow int
-	odds         *OddsDeps
+	sources        []fantasy.Source
+	store          Store
+	cache          Cache
+	formGWWindow   int
+	gwStatsWindows map[string]int
+	odds           *OddsDeps
 }
 
 func New(sources []fantasy.Source, store Store, cache Cache, formGWWindow int) *Syncer {
 	return &Syncer{sources: sources, store: store, cache: cache, formGWWindow: formGWWindow}
+}
+
+// WithGWStatsWindows sets, per game, how many gameweeks back player GW stats
+// are synced. Games without an entry default to 5. Only used for sources that
+// fetch stats one GW at a time (GWStatsProvider).
+func (s *Syncer) WithGWStatsWindows(windows map[string]int) *Syncer {
+	s.gwStatsWindows = windows
+	return s
 }
 
 // WithOdds attaches odds-sync dependencies to the syncer.
@@ -130,10 +152,10 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 		}
 	}
 
-	// 4. Concurrent: recompute team form | managers+picks+ownership | odds
+	// 4. Concurrent: recompute team form | managers+picks+ownership | odds | player GW stats
 	var (
 		wg      sync.WaitGroup
-		concErr [3]error
+		concErr [4]error
 	)
 
 	// 4a. Recompute team form
@@ -197,6 +219,15 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 		}
 	}()
 
+	// 4d. Player GW stats (feeds must-have detection)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := s.syncGWStats(ctx, src, gameID, gw); err != nil {
+			concErr[3] = err
+		}
+	}()
+
 	wg.Wait()
 
 	for _, e := range concErr {
@@ -229,6 +260,54 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 	}
 
 	slog.Info("sync complete", "game", gameID)
+	return nil
+}
+
+// syncGWStats upserts per-player stat lines into player_gw_stats. Sources that
+// return everything in one call (AllGWStatsProvider) are fetched once; otherwise
+// GWStatsProvider sources are fetched one GW at a time for the last per-game
+// window (plus the current GW). A failed fetch for one GW is logged and skipped
+// so a flaky live endpoint doesn't fail the whole sync. No-op for sources that
+// implement neither interface.
+func (s *Syncer) syncGWStats(ctx context.Context, src fantasy.Source, gameID string, currentGW int) error {
+	if ap, ok := src.(AllGWStatsProvider); ok {
+		stats, err := ap.FetchAllGWStats(ctx)
+		if err != nil {
+			return fmt.Errorf("FetchAllGWStats: %w", err)
+		}
+		if err := s.store.UpsertPlayerGWStats(ctx, stats); err != nil {
+			return fmt.Errorf("UpsertPlayerGWStats: %w", err)
+		}
+		slog.Info("player gw stats synced", "game", gameID, "lines", len(stats))
+		return nil
+	}
+
+	gp, ok := src.(GWStatsProvider)
+	if !ok {
+		return nil
+	}
+
+	window := s.gwStatsWindows[gameID]
+	if window <= 0 {
+		window = 5
+	}
+	from := currentGW - window
+	if from < 1 {
+		from = 1
+	}
+	var synced int
+	for gw := from; gw <= currentGW; gw++ {
+		stats, err := gp.FetchGWStats(ctx, gw)
+		if err != nil {
+			slog.Warn("FetchGWStats failed", "game", gameID, "gw", gw, "err", err)
+			continue
+		}
+		if err := s.store.UpsertPlayerGWStats(ctx, stats); err != nil {
+			return fmt.Errorf("UpsertPlayerGWStats gw=%d: %w", gw, err)
+		}
+		synced++
+	}
+	slog.Info("player gw stats synced", "game", gameID, "gws", synced, "from", from, "to", currentGW)
 	return nil
 }
 

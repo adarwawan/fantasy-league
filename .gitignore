@@ -4,10 +4,13 @@
 # Go
 backend/bin/
 backend/.env
+# local dev helper, not for CI
+backend/cmd/seed-gwstats/
 
 # Node
 frontend/node_modules/
 frontend/dist/
+*.tsbuildinfo
 
 *.md
 

@@ -187,6 +187,36 @@ func TestMapPicks(t *testing.T) {
 	}
 }
 
+func TestMapGWStats(t *testing.T) {
+	elements := []fplLiveElement{{ID: 328}, {ID: 1}}
+	elements[0].Stats.Minutes = 90
+	elements[0].Stats.TotalPoints = 12
+	elements[0].Stats.GoalsScored = 2
+	elements[0].Stats.Assists = 1
+	elements[0].Stats.Bonus = 3
+
+	stats := mapGWStats(30, elements)
+	if len(stats) != 2 {
+		t.Fatalf("expected 2, got %d", len(stats))
+	}
+	s := stats[0]
+	if s.GameID != "fpl" {
+		t.Errorf("expected GameID=fpl, got %s", s.GameID)
+	}
+	if s.PlayerExternalID != 328 {
+		t.Errorf("expected PlayerExternalID=328, got %d", s.PlayerExternalID)
+	}
+	if s.GW != 30 {
+		t.Errorf("expected GW=30, got %d", s.GW)
+	}
+	if s.Points != 12 || s.Minutes != 90 || s.Goals != 2 || s.Assists != 1 || s.Bonus != 3 {
+		t.Errorf("unexpected stat line: %+v", s)
+	}
+	if stats[1].Points != 0 {
+		t.Errorf("expected zero points for empty stats, got %d", stats[1].Points)
+	}
+}
+
 func TestCurrentGW(t *testing.T) {
 	events := []fplEvent{
 		{ID: 28, IsCurrent: false, IsNext: false},

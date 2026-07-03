@@ -3,17 +3,21 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"fantasy-league/internal/musthave"
 	"fantasy-league/internal/store"
 )
 
 type playerStore interface {
 	QueryPlayers(ctx context.Context, gameID, pos string, maxPrice float64, sort string, topN int) ([]store.PlayerRow, error)
+	QueryPlayerOwnerships(ctx context.Context, gameID string) ([]store.PlayerOwnership, error)
+	QueryRecentGWPoints(ctx context.Context, gameID string, window int) (map[string][]int, int, error)
 	CurrentGW(ctx context.Context, gameID string) (int, error)
 }
 
@@ -24,12 +28,15 @@ type cacheStore interface {
 
 // PlayersHandler handles GET /api/{game}/players and GET /api/{game}/players/scatter.
 type PlayersHandler struct {
-	store playerStore
-	cache cacheStore
+	store    playerStore
+	cache    cacheStore
+	mustHave map[string]musthave.Config
 }
 
-func NewPlayersHandler(s playerStore, c cacheStore) *PlayersHandler {
-	return &PlayersHandler{store: s, cache: c}
+// NewPlayersHandler creates the handler. mustHave holds per-game must-have
+// thresholds; games without an entry fall back to musthave.DefaultConfig.
+func NewPlayersHandler(s playerStore, c cacheStore, mustHave map[string]musthave.Config) *PlayersHandler {
+	return &PlayersHandler{store: s, cache: c, mustHave: mustHave}
 }
 
 type fixtureJSON struct {
@@ -60,6 +67,7 @@ type playerJSON struct {
 	TopNOwnership   float64       `json:"top_n_ownership"`
 	Status          string        `json:"status"`
 	News            string        `json:"news"`
+	MustHave        bool          `json:"must_have"`
 	Fixtures        []fixtureJSON `json:"fixtures"`
 }
 
@@ -104,7 +112,7 @@ func (h *PlayersHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	gw, _ := h.store.CurrentGW(r.Context(), game)
 
-	resp := buildPlayersResponse(game, gw, topN, players)
+	resp := buildPlayersResponse(game, gw, topN, players, h.mustHaveFlags(r.Context(), game, gw, players))
 	b, _ := json.Marshal(resp)
 	h.cache.Set(r.Context(), cacheKey, b, 30*time.Minute)
 
@@ -133,7 +141,7 @@ func (h *PlayersHandler) Scatter(w http.ResponseWriter, r *http.Request) {
 	}
 	gw, _ := h.store.CurrentGW(r.Context(), game)
 
-	resp := buildPlayersResponse(game, gw, scatterTopN, players)
+	resp := buildPlayersResponse(game, gw, scatterTopN, players, h.mustHaveFlags(r.Context(), game, gw, players))
 	b, _ := json.Marshal(resp)
 	h.cache.Set(r.Context(), cacheKey, b, 30*time.Minute)
 
@@ -171,7 +179,29 @@ func defaultTopN(game string) int {
 	return opts[len(opts)-1]
 }
 
-func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow) playersResponse {
+// mustHaveFlags computes the must-have flag for each player. Stars are
+// auxiliary, so lookup failures degrade to no flags rather than failing the
+// request.
+func (h *PlayersHandler) mustHaveFlags(ctx context.Context, game string, gw int, players []store.PlayerRow) map[string]bool {
+	cfg, ok := h.mustHave[game]
+	if !ok {
+		cfg = musthave.DefaultConfig()
+	}
+
+	pool, err := h.store.QueryPlayerOwnerships(ctx, game)
+	if err != nil {
+		slog.Warn("must-have: query ownerships failed", "game", game, "err", err)
+		return nil
+	}
+	points, gwsCounted, err := h.store.QueryRecentGWPoints(ctx, game, cfg.FormWindow)
+	if err != nil {
+		slog.Warn("must-have: query recent points failed", "game", game, "err", err)
+		return nil
+	}
+	return musthave.Compute(players, pool, points, gwsCounted, gw, cfg)
+}
+
+func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mustHave map[string]bool) playersResponse {
 	players := make([]playerJSON, len(rows))
 	for i, r := range rows {
 		fixtures := make([]fixtureJSON, len(r.Fixtures))
@@ -193,6 +223,7 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow) pla
 			TopNOwnership:   r.TopNOwnership,
 			Status:          r.Status,
 			News:            r.News,
+			MustHave:        mustHave[r.ID],
 			Fixtures:        fixtures,
 		}
 	}

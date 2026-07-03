@@ -36,6 +36,13 @@ type PlayerRow struct {
 	Fixtures        []FixtureInfo
 }
 
+// PlayerOwnership is the minimal read model used for ownership ranking.
+type PlayerOwnership struct {
+	PlayerID        string
+	Position        string
+	GlobalOwnership float64
+}
+
 // TeamRow is the read model returned by QueryTeams.
 type TeamRow struct {
 	ID        string
@@ -173,6 +180,80 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// QueryPlayerOwnerships returns every player's position and global ownership
+// for a game, for ownership ranking at the service level.
+func (s *Store) QueryPlayerOwnerships(ctx context.Context, gameID string) ([]PlayerOwnership, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT id, position, global_ownership FROM players WHERE game_id = $1`,
+		gameID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query player ownerships: %w", err)
+	}
+	defer rows.Close()
+
+	var out []PlayerOwnership
+	for rows.Next() {
+		var r PlayerOwnership
+		if err := rows.Scan(&r.PlayerID, &r.Position, &r.GlobalOwnership); err != nil {
+			return nil, fmt.Errorf("scan player ownership: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// QueryRecentGWPoints returns each player's points in the last `window`
+// finished gameweeks of a game, plus how many gameweeks were inspected
+// (fewer than window early in a season).
+func (s *Store) QueryRecentGWPoints(ctx context.Context, gameID string, window int) (map[string][]int, int, error) {
+	var gws []int
+	gwRows, err := s.db.Query(ctx, `
+		SELECT DISTINCT gw FROM fixtures
+		WHERE game_id = $1 AND finished
+		ORDER BY gw DESC
+		LIMIT $2
+	`, gameID, window)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query recent gws: %w", err)
+	}
+	defer gwRows.Close()
+	for gwRows.Next() {
+		var gw int
+		if err := gwRows.Scan(&gw); err != nil {
+			return nil, 0, fmt.Errorf("scan recent gw: %w", err)
+		}
+		gws = append(gws, gw)
+	}
+	if err := gwRows.Err(); err != nil {
+		return nil, 0, err
+	}
+	if len(gws) == 0 {
+		return map[string][]int{}, 0, nil
+	}
+
+	rows, err := s.db.Query(ctx, `
+		SELECT player_id, COALESCE(points, 0)
+		FROM player_gw_stats
+		WHERE game_id = $1 AND gw = ANY($2)
+	`, gameID, gws)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query recent gw points: %w", err)
+	}
+	defer rows.Close()
+
+	points := make(map[string][]int)
+	for rows.Next() {
+		var playerID string
+		var pts int
+		if err := rows.Scan(&playerID, &pts); err != nil {
+			return nil, 0, fmt.Errorf("scan recent gw points: %w", err)
+		}
+		points[playerID] = append(points[playerID], pts)
+	}
+	return points, len(gws), rows.Err()
 }
 
 // QueryTeams returns all teams for a game with next-N-fixtures joined, xG and CS%

@@ -66,10 +66,23 @@ type wcfPlayer struct {
 }
 
 type wcfPlayerStats struct {
-	TotalPoints     int     `json:"totalPoints"`
-	LastRoundPoints int     `json:"lastRoundPoints"`
-	Form            float64 `json:"form"`
-	AvgPoints       float64 `json:"avgPoints"`
+	TotalPoints     int            `json:"totalPoints"`
+	LastRoundPoints int            `json:"lastRoundPoints"`
+	Form            float64        `json:"form"`
+	AvgPoints       float64        `json:"avgPoints"`
+	RoundPoints     roundPointsMap `json:"roundPoints"` // round ID → points
+}
+
+// roundPointsMap is a map of round ID → points that tolerates the API's
+// PHP-style empty value: players with no recorded rounds get [] instead of {}.
+type roundPointsMap map[string]int
+
+func (m *roundPointsMap) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && b[0] == '[' {
+		*m = nil
+		return nil
+	}
+	return json.Unmarshal(b, (*map[string]int)(m))
 }
 
 type wcfSquad struct {

@@ -1,6 +1,7 @@
 package wcf
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -98,6 +99,49 @@ func TestMapPlayers_statusFallbacks(t *testing.T) {
 	}
 	if players[2].Position != "MID" {
 		t.Errorf("unknown position → MID fallback, got %s", players[2].Position)
+	}
+}
+
+func TestRoundPointsMap_unmarshal(t *testing.T) {
+	// Players with no recorded rounds get [] instead of {} (PHP-style empty).
+	var stats wcfPlayerStats
+	if err := json.Unmarshal([]byte(`{"roundPoints": []}`), &stats); err != nil {
+		t.Fatalf("empty array: %v", err)
+	}
+	if len(stats.RoundPoints) != 0 {
+		t.Errorf("expected empty map, got %v", stats.RoundPoints)
+	}
+	if err := json.Unmarshal([]byte(`{"roundPoints": {"1": 3, "2": 8}}`), &stats); err != nil {
+		t.Fatalf("object: %v", err)
+	}
+	if stats.RoundPoints["1"] != 3 || stats.RoundPoints["2"] != 8 {
+		t.Errorf("unexpected map: %v", stats.RoundPoints)
+	}
+}
+
+func TestMapGWStats(t *testing.T) {
+	raw := []wcfPlayer{
+		{ID: 10, Stats: wcfPlayerStats{RoundPoints: roundPointsMap{"1": 3, "2": 8, "bad": 4}}},
+		{ID: 20, Stats: wcfPlayerStats{RoundPoints: nil}},
+	}
+	stats := mapGWStats(raw)
+
+	// Player 20 has no rounds; player 10 contributes 2 valid rounds ("bad" is skipped).
+	if len(stats) != 2 {
+		t.Fatalf("expected 2 stat lines, got %d", len(stats))
+	}
+	byGW := map[int]int{}
+	for _, s := range stats {
+		if s.GameID != "wcf" {
+			t.Errorf("expected GameID=wcf, got %s", s.GameID)
+		}
+		if s.PlayerExternalID != 10 {
+			t.Errorf("expected PlayerExternalID=10, got %d", s.PlayerExternalID)
+		}
+		byGW[s.GW] = s.Points
+	}
+	if byGW[1] != 3 || byGW[2] != 8 {
+		t.Errorf("unexpected round points: %v", byGW)
 	}
 }
 

@@ -67,6 +67,27 @@ func mapPlayers(raw []wcfPlayer) []fantasy.Player {
 	return players
 }
 
+// mapGWStats flattens each player's per-round points map into stat lines.
+// WCF only exposes points per round; minutes/goals/assists/bonus stay zero.
+func mapGWStats(raw []wcfPlayer) []fantasy.PlayerGWStat {
+	var stats []fantasy.PlayerGWStat
+	for _, p := range raw {
+		for round, pts := range p.Stats.RoundPoints {
+			gw, err := strconv.Atoi(round)
+			if err != nil {
+				continue
+			}
+			stats = append(stats, fantasy.PlayerGWStat{
+				GameID:           gameID,
+				PlayerExternalID: p.ID,
+				GW:               gw,
+				Points:           pts,
+			})
+		}
+	}
+	return stats
+}
+
 // playerName returns knownName if set, otherwise "FirstName LastName".
 func playerName(p wcfPlayer) string {
 	if p.KnownName != nil && *p.KnownName != "" {

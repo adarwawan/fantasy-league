@@ -41,6 +41,21 @@ function dotRadius(ownership: number): number {
   return rMin + Math.min(ownership / clamp, 1) * (rMax - rMin);
 }
 
+const MUST_HAVE_COLOR = '#fbbf24'; // amber
+
+// 5-point star path centered on (cx, cy), sized to visually match a dot of radius r
+function starPath(cx: number, cy: number, r: number): string {
+  const outer = r * 1.4;
+  const inner = outer * 0.45;
+  const points: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const radius = i % 2 === 0 ? outer : inner;
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    points.push(`${cx + radius * Math.cos(angle)},${cy + radius * Math.sin(angle)}`);
+  }
+  return `M${points.join('L')}Z`;
+}
+
 interface PlotPoint {
   x:      number;
   y:      number;
@@ -126,6 +141,12 @@ export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
             Differential zone
           </div>
         )}
+        <div className="flex items-center gap-1.5 text-xs text-amber-400 ml-2 pl-2 border-l border-slate-700">
+          <svg width="12" height="12" viewBox="-12 -12 24 24" aria-hidden="true">
+            <path d={starPath(0, 0, 7)} fill="none" stroke={MUST_HAVE_COLOR} strokeWidth={2} />
+          </svg>
+          Must-have
+        </div>
         <div className="flex items-center gap-1.5 text-xs text-slate-500 ml-2 pl-2 border-l border-slate-700">
           dot size = ownership
         </div>
@@ -177,6 +198,23 @@ export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
               fillOpacity={0.8}
               shape={(props: unknown) => {
                 const { cx, cy, payload } = props as { cx: number; cy: number; payload: PlotPoint };
+                const interactive = {
+                  style: onPlayerClick ? { cursor: 'pointer' } : undefined,
+                  onClick: onPlayerClick ? () => onPlayerClick(payload.player) : undefined,
+                };
+                if (payload.player.must_have) {
+                  return (
+                    <path
+                      key={payload.player.id}
+                      d={starPath(cx, cy, payload.r)}
+                      fill={POS_COLORS[pos]}
+                      fillOpacity={0.95}
+                      stroke={MUST_HAVE_COLOR}
+                      strokeWidth={1.5}
+                      {...interactive}
+                    />
+                  );
+                }
                 return (
                   <circle
                     key={payload.player.id}
@@ -187,8 +225,7 @@ export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
                     fillOpacity={0.8}
                     stroke="#1e293b"
                     strokeWidth={1.5}
-                    style={onPlayerClick ? { cursor: 'pointer' } : undefined}
-                    onClick={onPlayerClick ? () => onPlayerClick(payload.player) : undefined}
+                    {...interactive}
                   />
                 );
               }}
