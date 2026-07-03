@@ -40,3 +40,7 @@ odds:
 
 form:
   gw_window: 3
+
+sync:
+  # Number of managers whose picks are fetched in parallel during a sync.
+  picks_workers: 10

@@ -24,6 +24,10 @@ type Config struct {
 
 	FormGWWindow int
 
+	// PicksWorkers is the number of managers whose picks are fetched in
+	// parallel during a sync.
+	PicksWorkers int
+
 	// MustHave holds per-game must-have thresholds, keyed by game ID.
 	MustHave map[string]MustHaveConfig
 
@@ -58,6 +62,9 @@ type coldConfig struct {
 	Form struct {
 		GWWindow int `yaml:"gw_window"`
 	} `yaml:"form"`
+	Sync struct {
+		PicksWorkers int `yaml:"picks_workers"`
+	} `yaml:"sync"`
 }
 
 // MustHaveConfig holds the thresholds for must-have player detection.
@@ -98,6 +105,7 @@ func loadColdConfig() coldConfig {
 	cc.WCF.OddsEnabled = true
 	cc.Odds.CacheTTL = "15m"
 	cc.Form.GWWindow = 3
+	cc.Sync.PicksWorkers = 10
 	cc.FPL.MustHave = defaultMustHave()
 	cc.WCF.MustHave = defaultMustHave()
 
@@ -141,6 +149,8 @@ func Load() Config {
 		WCFAuthToken:   os.Getenv("WCF_AUTH_TOKEN"),
 
 		FormGWWindow: envIntOr("FORM_GW_WINDOW", cc.Form.GWWindow),
+
+		PicksWorkers: envIntOr("PICKS_WORKERS", cc.Sync.PicksWorkers),
 
 		MustHave: map[string]MustHaveConfig{
 			"fpl": cc.FPL.MustHave,
