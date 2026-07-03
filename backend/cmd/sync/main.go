@@ -6,6 +6,7 @@ import (
 
 	"fantasy-league/internal/config"
 	"fantasy-league/internal/fantasy"
+	"fantasy-league/internal/musthave"
 	fplsrc "fantasy-league/internal/sources/fpl"
 	"fantasy-league/internal/store"
 	syncsvc "fantasy-league/internal/sync"
@@ -32,9 +33,20 @@ func main() {
 	}
 
 	windows := make(map[string]int, len(cfg.MustHave))
+	mustHave := make(map[string]musthave.Config, len(cfg.MustHave))
 	for game, mh := range cfg.MustHave {
 		windows[game] = mh.FormWindow
+		mustHave[game] = musthave.Config{
+			FormWindow:    mh.FormWindow,
+			FormPointsMin: mh.FormPointsMin,
+			FormRatio:     mh.FormRatio,
+			MaxNextFDR:    mh.MaxNextFDR,
+			TopGK:         mh.TopGK,
+			TopDEF:        mh.TopDEF,
+			TopMID:        mh.TopMID,
+			TopFWD:        mh.TopFWD,
+		}
 	}
-	syncer := syncsvc.New(sources, pg, cache, cfg.FormGWWindow).WithGWStatsWindows(windows)
+	syncer := syncsvc.New(sources, pg, cache, cfg.FormGWWindow).WithGWStatsWindows(windows).WithMustHave(mustHave)
 	syncer.RunAll(ctx)
 }
