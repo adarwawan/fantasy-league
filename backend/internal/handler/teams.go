@@ -49,14 +49,54 @@ type teamsResponse struct {
 	} `json:"meta"`
 }
 
+// GW/window params are clamped to this range so they can't be used to generate
+// unlimited distinct cache keys. No season has more than 38 gameweeks.
+const (
+	maxGW             = 38
+	defaultTeamWindow = 5
+)
+
+// validTeamSorts mirrors the sort keys accepted by store.QueryTeams. Any other
+// value canonicalizes to the default so cache keys stay bounded.
+var validTeamSorts = map[string]bool{
+	"ovr_form": true,
+	"xg_sum":   true,
+	"cs_avg":   true,
+}
+
+// canonicalTeamSort normalizes the sort param to a known key, defaulting to
+// ovr_form (mirrors the store-level fallback).
+func canonicalTeamSort(sort string) string {
+	if !validTeamSorts[sort] {
+		return "ovr_form"
+	}
+	return sort
+}
+
+// clampGW bounds a gameweek/window value to [0, maxGW], substituting def for
+// non-positive input (0 means "no bound" for fixture ranges).
+func clampGW(v, def int) int {
+	if v <= 0 {
+		return def
+	}
+	if v > maxGW {
+		return maxGW
+	}
+	return v
+}
+
+// mustAtoi parses s as an int, returning 0 on failure.
+func mustAtoi(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
+}
+
 func (h *TeamsHandler) List(w http.ResponseWriter, r *http.Request) {
 	game := chi.URLParam(r, "game")
 	q := r.URL.Query()
 	window, _ := strconv.Atoi(q.Get("window"))
-	if window == 0 {
-		window = 5
-	}
-	sort := q.Get("sort")
+	window = clampGW(window, defaultTeamWindow)
+	sort := canonicalTeamSort(q.Get("sort"))
 
 	cacheKey := store.CacheKey(game, "teams", strconv.Itoa(window), sort)
 
@@ -135,8 +175,8 @@ type fixturesResponse struct {
 func (h *TeamsHandler) Fixtures(w http.ResponseWriter, r *http.Request) {
 	game := chi.URLParam(r, "game")
 	q := r.URL.Query()
-	fromGW, _ := strconv.Atoi(q.Get("from_gw"))
-	toGW, _ := strconv.Atoi(q.Get("to_gw"))
+	fromGW := clampGW(mustAtoi(q.Get("from_gw")), 0)
+	toGW := clampGW(mustAtoi(q.Get("to_gw")), 0)
 
 	cacheKey := store.CacheKey(game, "fixtures", strconv.Itoa(fromGW), strconv.Itoa(toGW))
 	if cached, _ := h.cache.Get(r.Context(), cacheKey); cached != nil {
