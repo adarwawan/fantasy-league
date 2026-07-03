@@ -10,9 +10,14 @@ import (
 	"time"
 
 	"fantasy-league/internal/fantasy"
+	"fantasy-league/internal/musthave"
 	"fantasy-league/internal/sources/odds"
 	"fantasy-league/internal/store"
 )
+
+// mustHaveCacheTTL outlives the daily sync cadence so the players endpoints
+// can serve must-have flags from cache without recomputing per request.
+const mustHaveCacheTTL = 48 * time.Hour
 
 // GWProvider is implemented by sources that can report the current gameweek.
 type GWProvider interface {
@@ -37,6 +42,7 @@ type Store interface {
 	UpsertFixtures(ctx context.Context, fixtures []fantasy.Fixture) error
 	UpsertPlayers(ctx context.Context, players []fantasy.Player) error
 	UpsertPlayerGWStats(ctx context.Context, stats []fantasy.PlayerGWStat) error
+	musthave.Store
 	ResetManagerRanks(ctx context.Context, gameID string) error
 	UpsertManagers(ctx context.Context, managers []fantasy.Manager) error
 	UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) error
@@ -74,6 +80,7 @@ type Syncer struct {
 	cache          Cache
 	formGWWindow   int
 	gwStatsWindows map[string]int
+	mustHave       map[string]musthave.Config
 	odds           *OddsDeps
 }
 
@@ -86,6 +93,13 @@ func New(sources []fantasy.Source, store Store, cache Cache, formGWWindow int) *
 // fetch stats one GW at a time (GWStatsProvider).
 func (s *Syncer) WithGWStatsWindows(windows map[string]int) *Syncer {
 	s.gwStatsWindows = windows
+	return s
+}
+
+// WithMustHave sets per-game must-have thresholds. Games without an entry
+// fall back to musthave.DefaultConfig.
+func (s *Syncer) WithMustHave(configs map[string]musthave.Config) *Syncer {
+	s.mustHave = configs
 	return s
 }
 
@@ -236,12 +250,26 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 		}
 	}
 
-	// 5. Invalidate cache
+	// 5. Must-have — computed from the freshly synced data. A nil result means
+	// the computation failed; the sync continues since stars are auxiliary.
+	mustHaveIDs := s.computeMustHave(ctx, gameID)
+
+	// 6. Invalidate cache
 	if err := s.cache.InvalidateGame(ctx, gameID); err != nil {
 		slog.Warn("cache invalidation failed", "game", gameID, "err", err)
 	}
 
-	// 6. Deadline — set after invalidation so it survives the wipe.
+	// 7. Must-have cache — set after invalidation so it survives the wipe.
+	// The TTL covers two sync cycles so a single failed sync doesn't drop stars.
+	if mustHaveIDs != nil {
+		if b, err := json.Marshal(mustHaveIDs); err == nil {
+			if err := s.cache.Set(ctx, store.CacheKey(gameID, "musthave"), b, mustHaveCacheTTL); err != nil {
+				slog.Warn("cache set musthave failed", "game", gameID, "err", err)
+			}
+		}
+	}
+
+	// 8. Deadline — set after invalidation so it survives the wipe.
 	if dp, ok := src.(DeadlineProvider); ok {
 		dgw, deadline, err := dp.FetchDeadline(ctx)
 		if err != nil {
@@ -309,6 +337,22 @@ func (s *Syncer) syncGWStats(ctx context.Context, src fantasy.Source, gameID str
 	}
 	slog.Info("player gw stats synced", "game", gameID, "gws", synced, "from", from, "to", currentGW)
 	return nil
+}
+
+// computeMustHave returns the sorted must-have player IDs for a game, or nil
+// when the computation fails (logged, never fatal).
+func (s *Syncer) computeMustHave(ctx context.Context, gameID string) []string {
+	cfg, ok := s.mustHave[gameID]
+	if !ok {
+		cfg = musthave.DefaultConfig()
+	}
+	ids, err := musthave.ComputeForGame(ctx, s.store, gameID, cfg)
+	if err != nil {
+		slog.Warn("must-have compute failed", "game", gameID, "err", err)
+		return nil
+	}
+	slog.Info("must-have computed", "game", gameID, "players", len(ids))
+	return ids
 }
 
 // RunOdds runs the odds sync for a single game in isolation (used by the sync-odds CLI).

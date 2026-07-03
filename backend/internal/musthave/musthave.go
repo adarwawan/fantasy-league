@@ -3,11 +3,21 @@
 package musthave
 
 import (
+	"context"
+	"fmt"
 	"math"
 	"sort"
 
 	"fantasy-league/internal/store"
 )
+
+// Store is the subset of store.Store needed to compute must-have players.
+type Store interface {
+	QueryPlayers(ctx context.Context, gameID, pos string, maxPrice float64, sort string, topN int) ([]store.PlayerRow, error)
+	QueryPlayerOwnerships(ctx context.Context, gameID string) ([]store.PlayerOwnership, error)
+	QueryRecentGWPoints(ctx context.Context, gameID string, window int) (map[string][]int, int, error)
+	CurrentGW(ctx context.Context, gameID string) (int, error)
+}
 
 // Config parameterizes must-have detection. Configs are per game; games
 // without one fall back to DefaultConfig.
@@ -33,6 +43,36 @@ func DefaultConfig() Config {
 		TopMID:        8,
 		TopFWD:        5,
 	}
+}
+
+// ComputeForGame loads a game's inputs from the store and returns the sorted
+// IDs of every must-have player. The result is never nil on success, so an
+// empty set is distinguishable from a failed computation.
+func ComputeForGame(ctx context.Context, s Store, gameID string, cfg Config) ([]string, error) {
+	players, err := s.QueryPlayers(ctx, gameID, "", 0, "global_ownership", 0)
+	if err != nil {
+		return nil, fmt.Errorf("query players: %w", err)
+	}
+	pool, err := s.QueryPlayerOwnerships(ctx, gameID)
+	if err != nil {
+		return nil, fmt.Errorf("query ownerships: %w", err)
+	}
+	points, gwsCounted, err := s.QueryRecentGWPoints(ctx, gameID, cfg.FormWindow)
+	if err != nil {
+		return nil, fmt.Errorf("query recent points: %w", err)
+	}
+	gw, err := s.CurrentGW(ctx, gameID)
+	if err != nil {
+		return nil, fmt.Errorf("current gw: %w", err)
+	}
+
+	flags := Compute(players, pool, points, gwsCounted, gw, cfg)
+	ids := make([]string, 0, len(flags))
+	for id := range flags {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids, nil
 }
 
 // Compute returns the IDs among candidates that satisfy every must-have

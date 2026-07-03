@@ -13,6 +13,7 @@ import (
 
 	"fantasy-league/internal/fantasy"
 	"fantasy-league/internal/handler"
+	"fantasy-league/internal/musthave"
 	"fantasy-league/internal/store"
 )
 
@@ -85,9 +86,16 @@ func TestPlayersEndpoint(t *testing.T) {
 		t.Fatalf("seed gw stats: %v", err)
 	}
 
-	// Build handler with no-op cache and default must-have thresholds
-	cache := &noopCache{}
-	h := handler.NewPlayersHandler(pg, cache, nil)
+	// Prime the must-have cache entry the way the syncer does after each run.
+	cache := &memCache{}
+	ids, err := musthave.ComputeForGame(ctx, pg, gameID, musthave.DefaultConfig())
+	if err != nil {
+		t.Fatalf("compute must-have: %v", err)
+	}
+	b, _ := json.Marshal(ids)
+	cache.Set(ctx, store.CacheKey(gameID, "musthave"), b, 0)
+
+	h := handler.NewPlayersHandler(pg, cache)
 
 	r := chi.NewRouter()
 	r.Get("/api/{game}/players", h.List)
@@ -141,7 +149,18 @@ func TestPlayersEndpoint(t *testing.T) {
 	pg.DeleteTestGame(ctx, gameID)
 }
 
-type noopCache struct{}
+type memCache struct {
+	m map[string][]byte
+}
 
-func (n *noopCache) Get(_ context.Context, _ string) ([]byte, error)                       { return nil, nil }
-func (n *noopCache) Set(_ context.Context, _ string, _ []byte, _ time.Duration) error      { return nil }
+func (c *memCache) Get(_ context.Context, key string) ([]byte, error) {
+	return c.m[key], nil
+}
+
+func (c *memCache) Set(_ context.Context, key string, val []byte, _ time.Duration) error {
+	if c.m == nil {
+		c.m = map[string][]byte{}
+	}
+	c.m[key] = val
+	return nil
+}

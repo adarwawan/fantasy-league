@@ -72,9 +72,9 @@ func main() {
 	}
 
 	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FormGWWindow).
-		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg))
+		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg))
 	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FormGWWindow).
-		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg))
+		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg))
 
 	// Scheduler — daily at 08:00 UTC (recurring sources only)
 	scheduler, err := gocron.NewScheduler()
@@ -96,7 +96,7 @@ func main() {
 	go startupSyncer.RunAll(ctx)
 
 	// Handlers
-	playersH := handler.NewPlayersHandler(pg, cache, mustHaveConfigs(cfg))
+	playersH := handler.NewPlayersHandler(pg, cache)
 	teamsH := handler.NewTeamsHandler(pg, cache)
 	oddsH := handler.NewOddsHandler(pg, cache)
 
