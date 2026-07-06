@@ -8,7 +8,7 @@ server:
 # Note: WCF fixtures always carry FDR 3, so max_next_fdr < 3 disables stars there.
 
 fpl:
-  sync_enabled: false
+  sync_enabled: true
   sync_once: false
   league_id: 314
   odds_enabled: false

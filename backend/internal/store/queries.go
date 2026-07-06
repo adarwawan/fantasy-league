@@ -301,6 +301,61 @@ func (s *Store) QueryRecentGWPointsByGW(ctx context.Context, gameID string, wind
 	return out, rows.Err()
 }
 
+// PlayerStatGW is one player's raw stat line for a single finished gameweek,
+// with identity fields joined for presentation. The Stats service aggregates
+// these over the window and derives per-position leaders; keeping the store
+// output raw (no thresholds, no ranking) makes the scoring logic testable in Go.
+type PlayerStatGW struct {
+	PlayerID              string
+	Position              string
+	Name                  string
+	TeamShortName         string
+	Goals                 int
+	Assists               int
+	CleanSheets           int
+	Bonus                 int
+	DefensiveContribution int // raw CBIT/recovery action count for the GW
+}
+
+// QueryRecentPlayerStatLines returns every player's raw per-gameweek stat lines
+// over the last `window` finished gameweeks of a game, joined to the player's
+// position, name and team. One row per (player, gameweek).
+func (s *Store) QueryRecentPlayerStatLines(ctx context.Context, gameID string, window int) ([]PlayerStatGW, error) {
+	rows, err := s.db.Query(ctx, `
+		WITH recent AS (
+			SELECT DISTINCT gw FROM fixtures
+			WHERE game_id = $1 AND finished
+			ORDER BY gw DESC
+			LIMIT $2
+		)
+		SELECT
+			p.id::text, p.position, p.name, t.short_name,
+			s.goals, s.assists, s.clean_sheets, s.bonus, s.defensive_contribution
+		FROM player_gw_stats s
+		JOIN recent r ON r.gw = s.gw
+		JOIN players p ON p.id = s.player_id
+		JOIN teams t ON t.id = p.team_id
+		WHERE s.game_id = $1
+	`, gameID, window)
+	if err != nil {
+		return nil, fmt.Errorf("query recent player stat lines: %w", err)
+	}
+	defer rows.Close()
+
+	var out []PlayerStatGW
+	for rows.Next() {
+		var r PlayerStatGW
+		if err := rows.Scan(
+			&r.PlayerID, &r.Position, &r.Name, &r.TeamShortName,
+			&r.Goals, &r.Assists, &r.CleanSheets, &r.Bonus, &r.DefensiveContribution,
+		); err != nil {
+			return nil, fmt.Errorf("scan player stat line: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // QueryTeams returns all teams for a game with next-N-fixtures joined, xG and CS%
 // pulled from match_odds, and aggregate xg_sum / cs_avg over the window.
 // window is clamped to [1, 10] and defaults to 5. sort must be one of

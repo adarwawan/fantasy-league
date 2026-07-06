@@ -98,6 +98,7 @@ func main() {
 	// Handlers
 	playersH := handler.NewPlayersHandler(pg, cache)
 	teamsH := handler.NewTeamsHandler(pg, cache)
+	statsH := handler.NewStatsHandler(pg, cache)
 	oddsH := handler.NewOddsHandler(pg, cache)
 
 	deadlineH := handler.NewDeadlineHandler(cache)
@@ -137,6 +138,7 @@ func main() {
 
 		r.Get("/players/scatter", playersH.Scatter)
 		r.Get("/players", playersH.List)
+		r.Get("/stats", statsH.List)
 		r.Get("/teams", teamsH.List)
 		r.Get("/fixtures", teamsH.Fixtures)
 		r.Get("/fixtures/odds", oddsH.List)
