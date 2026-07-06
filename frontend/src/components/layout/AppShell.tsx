@@ -6,17 +6,21 @@ const NAV_LINKS = [
   { to: 'players', label: 'Players' },
   { to: 'teams',   label: 'Teams'   },
   { to: 'scatter', label: 'Scatter' },
+  // Stats is FPL-specific (built around the FPL scoring rules).
+  { to: 'stats',   label: 'Stats', games: ['fpl'] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { game = 'fpl' } = useParams<{ game: string }>();
   const { pathname } = useLocation();
 
-  const navLinks = NAV_LINKS.map(({ to, label }) => {
-    const href = `/${game}/${to}`;
-    const active = pathname === href;
-    return { to, label, href, active };
-  });
+  const navLinks = NAV_LINKS
+    .filter(({ games }) => !games || games.includes(game))
+    .map(({ to, label }) => {
+      const href = `/${game}/${to}`;
+      const active = pathname === href;
+      return { to, label, href, active };
+    });
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">

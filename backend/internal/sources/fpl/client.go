@@ -117,6 +117,8 @@ type fplLiveElement struct {
 		GoalsScored int `json:"goals_scored"`
 		Assists     int `json:"assists"`
 		Bonus       int `json:"bonus"`
+		CleanSheets int `json:"clean_sheets"`
+		DefCon      int `json:"defensive_contribution"`
 	} `json:"stats"`
 }
 

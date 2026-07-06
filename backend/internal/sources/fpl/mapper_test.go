@@ -194,6 +194,8 @@ func TestMapGWStats(t *testing.T) {
 	elements[0].Stats.GoalsScored = 2
 	elements[0].Stats.Assists = 1
 	elements[0].Stats.Bonus = 3
+	elements[0].Stats.CleanSheets = 1
+	elements[0].Stats.DefCon = 12
 
 	stats := mapGWStats(30, elements)
 	if len(stats) != 2 {
@@ -211,6 +213,9 @@ func TestMapGWStats(t *testing.T) {
 	}
 	if s.Points != 12 || s.Minutes != 90 || s.Goals != 2 || s.Assists != 1 || s.Bonus != 3 {
 		t.Errorf("unexpected stat line: %+v", s)
+	}
+	if s.CleanSheets != 1 || s.DefCon != 12 {
+		t.Errorf("unexpected defensive stat line: %+v", s)
 	}
 	if stats[1].Points != 0 {
 		t.Errorf("expected zero points for empty stats, got %d", stats[1].Points)

@@ -55,6 +55,8 @@ type PlayerGWStat struct {
 	Goals            int
 	Assists          int
 	Bonus            int
+	CleanSheets      int
+	DefCon           int
 }
 
 type Manager struct {
