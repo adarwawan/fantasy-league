@@ -9,9 +9,12 @@ import {
   ReferenceArea,
   type TooltipProps,
 } from 'recharts';
+import { useState } from 'react';
 import type { Player } from '../../types/player';
 import type { AxisKey } from './AxisSelector';
 import { PlayerTooltip } from './PlayerTooltip';
+import { PlayerPeekCard } from './PlayerPeekCard';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const POS_COLORS: Record<string, string> = {
   GK:  '#34d399', // emerald — matches PositionBadge
@@ -88,6 +91,17 @@ interface Props {
 }
 
 export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
+  // On touch/small screens a floating tooltip covers the very dot being
+  // inspected, so we dock a peek card to the bottom instead (tap-to-select).
+  const isMobile = useMediaQuery('(max-width: 639px)');
+  const [peek, setPeek] = useState<PlotPoint | null>(null);
+
+  // On mobile, a dot tap selects (docked card); on desktop it opens the drawer.
+  const handleDotTap = (point: PlotPoint) => {
+    if (isMobile) setPeek(point);
+    else onPlayerClick?.(point.player);
+  };
+
   const byPosition = POSITIONS.reduce<Record<string, PlotPoint[]>>((acc, pos) => {
     acc[pos] = players
       .filter(p => p.position === pos)
@@ -171,7 +185,10 @@ export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
             tick={{ fontSize: 11, fill: '#94a3b8' }}
             stroke="#475569"
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3', stroke: '#64748b' }} />
+          {/* Floating tooltip on hover-capable devices only; mobile uses the docked peek card */}
+          {!isMobile && (
+            <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3', stroke: '#64748b' }} />
+          )}
 
           {/* Differential zone overlay — high form, low ownership quadrant */}
           {showZone && (
@@ -200,7 +217,7 @@ export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
                 const { cx, cy, payload } = props as { cx: number; cy: number; payload: PlotPoint };
                 const interactive = {
                   style: onPlayerClick ? { cursor: 'pointer' } : undefined,
-                  onClick: onPlayerClick ? () => onPlayerClick(payload.player) : undefined,
+                  onClick: onPlayerClick ? () => handleDotTap(payload) : undefined,
                 };
                 if (payload.player.must_have) {
                   return (
@@ -233,6 +250,18 @@ export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
           ))}
         </ScatterChart>
       </ResponsiveContainer>
+
+      {peek && (
+        <PlayerPeekCard
+          player={peek.player}
+          avgFdr={peek.avgFdr}
+          onDetails={() => {
+            onPlayerClick?.(peek.player);
+            setPeek(null);
+          }}
+          onClose={() => setPeek(null)}
+        />
+      )}
     </div>
   );
 }
