@@ -47,6 +47,7 @@ export function PlayerCard({
         <span className="text-slate-300">£{player.price.toFixed(1)}m</span>
         <span className="text-slate-400">Form <span className="text-slate-200">{player.form.toFixed(1)}</span></span>
         <span className="text-slate-400">Own <span className="text-slate-200">{player.global_ownership.toFixed(1)}%</span></span>
+        <span className="text-slate-400">EO <span className="text-slate-200">{player.effective_ownership.toFixed(1)}%</span></span>
         <span className={`ml-auto font-semibold ${diffColor}`}>{diffSign}{diff.toFixed(1)}%</span>
       </div>
 

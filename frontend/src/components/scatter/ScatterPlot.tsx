@@ -31,9 +31,10 @@ function computeAvgFdr(player: Player): number {
 
 function getValue(player: Player, axis: AxisKey, avgFdr: number): number {
   switch (axis) {
-    case 'global_ownership': return player.global_ownership;
-    case 'top_n_ownership':  return player.top_n_ownership;
-    case 'form':             return player.form;
+    case 'global_ownership':    return player.global_ownership;
+    case 'top_n_ownership':     return player.top_n_ownership;
+    case 'effective_ownership': return player.effective_ownership;
+    case 'form':                return player.form;
     case 'avg_fdr':          return avgFdr;
   }
 }
@@ -77,7 +78,7 @@ const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'] as const;
 
 // Show differential zone overlay when one axis is form and the other is an ownership axis
 function isDifferentialView(xAxis: AxisKey, yAxis: AxisKey): boolean {
-  const ownershipAxes = new Set<AxisKey>(['global_ownership', 'top_n_ownership']);
+  const ownershipAxes = new Set<AxisKey>(['global_ownership', 'top_n_ownership', 'effective_ownership']);
   const hasForm = xAxis === 'form' || yAxis === 'form';
   const hasOwnership = ownershipAxes.has(xAxis) || ownershipAxes.has(yAxis);
   return hasForm && hasOwnership;

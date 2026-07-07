@@ -16,7 +16,7 @@ const OWNERSHIP_FLOOR = 2; // percent global ownership
 
 function getAxisParam(sp: URLSearchParams, key: string, fallback: AxisKey): AxisKey {
   const v = sp.get(key);
-  const valid: AxisKey[] = ['global_ownership', 'top_n_ownership', 'form', 'avg_fdr'];
+  const valid: AxisKey[] = ['global_ownership', 'top_n_ownership', 'effective_ownership', 'form', 'avg_fdr'];
   return valid.includes(v as AxisKey) ? (v as AxisKey) : fallback;
 }
 
