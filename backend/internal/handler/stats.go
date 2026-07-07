@@ -18,15 +18,6 @@ const statsWindow = 5
 // statsLeaderLimit is how many players each stat card lists.
 const statsLeaderLimit = 5
 
-// Defensive-contribution thresholds (FPL scoring rules): a player earns 2 points
-// in a gameweek when a defender reaches 10+ CBIT actions, or a midfielder/forward
-// reaches 12+ CBIT+recovery actions.
-const (
-	defenderDCThreshold = 10
-	midFwdDCThreshold   = 12
-	defensiveConPoints  = 2
-)
-
 type statsStore interface {
 	QueryRecentPlayerStatLines(ctx context.Context, gameID string, window int) ([]store.PlayerStatGW, error)
 	CurrentGW(ctx context.Context, gameID string) (int, error)
@@ -43,23 +34,6 @@ type statLeader struct {
 	Name      string
 	Team      string
 	Value     int
-}
-
-// defensiveContributionPoints returns the FPL points a player earns in a single
-// gameweek for defensive contribution. Pure function so the scoring rule can be
-// unit-tested directly.
-func defensiveContributionPoints(position string, actions int) int {
-	switch position {
-	case "DEF":
-		if actions >= defenderDCThreshold {
-			return defensiveConPoints
-		}
-	case "MID", "FWD":
-		if actions >= midFwdDCThreshold {
-			return defensiveConPoints
-		}
-	}
-	return 0
 }
 
 // componentPoints converts a player's raw count for a counting component
@@ -110,8 +84,9 @@ var statPositions = []string{"GK", "DEF", "MID", "FWD"}
 // computeStatLeaders aggregates raw per-gameweek stat lines into ranked leaders:
 // for each position and component, the top `limit` players by FPL points earned,
 // excluding zero totals. Every card's value is points: goals/assists/clean sheets
-// are converted from raw counts via componentPoints; "bonus" is already points;
-// "defensive_con" sums the per-GW threshold points (defensiveContributionPoints).
+// are converted from raw counts via componentPoints; "bonus" and "defensive_con"
+// are already points (defensive_con is summed per-fixture at ingest, so double
+// gameweeks are scored correctly).
 // Deterministic: ties break on player name ascending.
 func computeStatLeaders(lines []store.PlayerStatGW, limit int) []statLeader {
 	// Aggregate per player. component -> total.
@@ -132,7 +107,7 @@ func computeStatLeaders(lines []store.PlayerStatGW, limit int) []statLeader {
 		a.totals["assists"] += l.Assists
 		a.totals["clean_sheet"] += l.CleanSheets
 		a.totals["bonus"] += l.Bonus
-		a.totals["defensive_con"] += defensiveContributionPoints(l.Position, l.DefensiveContribution)
+		a.totals["defensive_con"] += l.DefensiveContribution
 	}
 
 	var out []statLeader

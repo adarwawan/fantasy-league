@@ -56,6 +56,9 @@ type PlayerGWStat struct {
 	Assists          int
 	Bonus            int
 	CleanSheets      int
+	// DefCon is the defensive-contribution points earned in the gameweek (0/2/4),
+	// summed per fixture so double gameweeks are scored correctly — not the raw
+	// CBIT/recovery action count.
 	DefCon           int
 }
 

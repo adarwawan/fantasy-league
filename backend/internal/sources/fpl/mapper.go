@@ -111,10 +111,27 @@ func mapGWStats(gw int, elements []fplLiveElement) []fantasy.PlayerGWStat {
 			Assists:          e.Stats.Assists,
 			Bonus:            e.Stats.Bonus,
 			CleanSheets:      e.Stats.CleanSheets,
-			DefCon:           e.Stats.DefCon,
+			DefCon:           defConPoints(e.Explain),
 		})
 	}
 	return stats
+}
+
+// defConPoints sums the defensive-contribution points a player earned across all
+// of the gameweek's fixtures. FPL evaluates the CBIT/recovery threshold per
+// fixture, so in a double gameweek the correct total is the sum of per-fixture
+// points (0, 2 or 4) — not the threshold applied once to the aggregate action
+// count, which is what stats.defensive_contribution would give.
+func defConPoints(explain []fplExplain) int {
+	total := 0
+	for _, ex := range explain {
+		for _, s := range ex.Stats {
+			if s.Identifier == "defensive_contribution" {
+				total += s.Points
+			}
+		}
+	}
+	return total
 }
 
 func mapManagers(entries []fplStandingEntry) []fantasy.Manager {

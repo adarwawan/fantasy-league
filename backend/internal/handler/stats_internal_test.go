@@ -6,29 +6,6 @@ import (
 	"fantasy-league/internal/store"
 )
 
-func TestDefensiveContributionPoints(t *testing.T) {
-	cases := []struct {
-		position string
-		actions  int
-		want     int
-	}{
-		{"DEF", 9, 0},
-		{"DEF", 10, 2},  // defender threshold
-		{"DEF", 25, 2},  // capped at 2 per GW
-		{"MID", 11, 0},
-		{"MID", 12, 2},  // mid/fwd threshold
-		{"FWD", 12, 2},
-		{"FWD", 11, 0},
-		{"GK", 50, 0},   // keepers earn no DC points
-		{"", 100, 0},    // unknown position
-	}
-	for _, c := range cases {
-		if got := defensiveContributionPoints(c.position, c.actions); got != c.want {
-			t.Errorf("defensiveContributionPoints(%q, %d) = %d, want %d", c.position, c.actions, got, c.want)
-		}
-	}
-}
-
 func TestComponentPoints(t *testing.T) {
 	cases := []struct {
 		position, component string
@@ -54,15 +31,17 @@ func TestComponentPoints(t *testing.T) {
 
 func TestComputeStatLeaders(t *testing.T) {
 	// Two finished GWs per player, mixed positions. Card values are FPL points.
+	// DefensiveContribution is stored as points (0/2/4), already resolved per
+	// fixture at ingest — not a raw action count.
 	lines := []store.PlayerStatGW{
-		// Defender A: 1 goal (→6 pts), DC threshold met both GWs → 4 DC points.
-		{PlayerID: "dA", Position: "DEF", Name: "Alpha", TeamShortName: "ARS", Goals: 1, DefensiveContribution: 12},
-		{PlayerID: "dA", Position: "DEF", Name: "Alpha", TeamShortName: "ARS", Goals: 0, DefensiveContribution: 10},
-		// Defender B: 2 goals (→12 pts); DC met once (10) missed once (9) → 2 DC points.
-		{PlayerID: "dB", Position: "DEF", Name: "Bravo", TeamShortName: "LIV", Goals: 2, DefensiveContribution: 9},
-		{PlayerID: "dB", Position: "DEF", Name: "Bravo", TeamShortName: "LIV", Goals: 0, DefensiveContribution: 10},
-		// Midfielder C: 3 assists (→9 pts); DC uses the 12 threshold; 11 is below → 0.
-		{PlayerID: "mC", Position: "MID", Name: "Charlie", TeamShortName: "MCI", Assists: 3, DefensiveContribution: 11},
+		// Defender A: 1 goal (→6 pts), DC points earned both GWs → 4 DC points.
+		{PlayerID: "dA", Position: "DEF", Name: "Alpha", TeamShortName: "ARS", Goals: 1, DefensiveContribution: 2},
+		{PlayerID: "dA", Position: "DEF", Name: "Alpha", TeamShortName: "ARS", Goals: 0, DefensiveContribution: 2},
+		// Defender B: 2 goals (→12 pts); DC earned once, missed once → 2 DC points.
+		{PlayerID: "dB", Position: "DEF", Name: "Bravo", TeamShortName: "LIV", Goals: 2, DefensiveContribution: 0},
+		{PlayerID: "dB", Position: "DEF", Name: "Bravo", TeamShortName: "LIV", Goals: 0, DefensiveContribution: 2},
+		// Midfielder C: 3 assists (→9 pts); no DC points → excluded from DC card.
+		{PlayerID: "mC", Position: "MID", Name: "Charlie", TeamShortName: "MCI", Assists: 3, DefensiveContribution: 0},
 	}
 
 	leaders := computeStatLeaders(lines, 5)
