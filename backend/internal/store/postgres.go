@@ -211,6 +211,42 @@ func (s *Store) DeleteTestGame(ctx context.Context, gameID string) {
 	s.db.Exec(ctx, `DELETE FROM teams WHERE game_id = $1`, gameID)
 }
 
+// PruneStalePicks deletes manager_picks rows for gameweeks other than the given
+// (current) one. Picks are only ever read for the current gameweek when
+// recomputing ownership, so historical rows are dead weight — with a large top-N
+// manager sample they dominate database size. Call this after ownership has been
+// recomputed for the current gameweek.
+func (s *Store) PruneStalePicks(ctx context.Context, gameID string, currentGW int) error {
+	_, err := s.db.Exec(ctx,
+		`DELETE FROM manager_picks WHERE game_id = $1 AND gw <> $2`, gameID, currentGW)
+	if err != nil {
+		return fmt.Errorf("PruneStalePicks: %w", err)
+	}
+	return nil
+}
+
+// PruneRanklessManagers deletes managers whose overall_rank is NULL, i.e. those
+// who were in the top-N on an earlier sync but have since dropped out. They are
+// excluded from every read (NULL <= N is false in RecomputeTopNOwnerships) and
+// only accumulate as the top-N churns. Their picks are removed first to satisfy
+// the manager_picks -> managers foreign key. Call this after managers have been
+// re-ranked for the current sync (UpsertManagers), never before.
+func (s *Store) PruneRanklessManagers(ctx context.Context, gameID string) error {
+	if _, err := s.db.Exec(ctx, `
+		DELETE FROM manager_picks
+		WHERE game_id = $1
+		  AND manager_id IN (
+		      SELECT id FROM managers WHERE game_id = $1 AND overall_rank IS NULL
+		  )`, gameID); err != nil {
+		return fmt.Errorf("PruneRanklessManagers picks: %w", err)
+	}
+	if _, err := s.db.Exec(ctx,
+		`DELETE FROM managers WHERE game_id = $1 AND overall_rank IS NULL`, gameID); err != nil {
+		return fmt.Errorf("PruneRanklessManagers managers: %w", err)
+	}
+	return nil
+}
+
 // RecomputeTeamForm recalculates att_form, def_form, and ovr_form for every team
 // in a game by averaging results across the last gwWindow finished gameweeks.
 // The divisor is the count of finished fixtures (not gwWindow), so unplayed GWs
