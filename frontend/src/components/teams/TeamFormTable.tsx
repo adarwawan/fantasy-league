@@ -166,7 +166,6 @@ export function TeamFormTable({ teams, players, focusMode, window, onFocusChange
           rows={table.getRowModel().rows.map(r => r.original)}
           players={players}
           focusMode={focusMode}
-          window={window}
           expanded={expanded}
           onToggle={toggle}
           sorting={sorting}
@@ -231,7 +230,7 @@ export function TeamFormTable({ teams, players, focusMode, window, onFocusChange
                         return (
                           <td key={cell.id} className="px-3 py-2">
                             <div className="flex gap-1 flex-wrap">
-                              {team.fixtures.slice(0, window).map((tf, i) => (
+                              {team.fixtures.map((tf, i) => (
                                 <FixtureChip
                                   key={i}
                                   fixture={toFixture(tf)}
@@ -364,7 +363,6 @@ function MobileTeamCards({
   rows,
   players,
   focusMode,
-  window,
   expanded,
   onToggle,
   sorting,
@@ -373,7 +371,6 @@ function MobileTeamCards({
   rows: Team[];
   players: Player[];
   focusMode: FocusMode;
-  window: number;
   expanded: Set<string>;
   onToggle: (id: string) => void;
   sorting: SortingState;
@@ -423,7 +420,7 @@ function MobileTeamCards({
 
                 {/* Line 3 — fixtures */}
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {team.fixtures.slice(0, window).map((tf, i) => (
+                  {team.fixtures.map((tf, i) => (
                     <FixtureChip
                       key={i}
                       fixture={toFixture(tf)}

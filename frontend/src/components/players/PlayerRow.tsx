@@ -122,10 +122,11 @@ export const PlayerRow = forwardRef<HTMLTableRowElement, PlayerRowProps>(functio
         {diffSign}{diff.toFixed(1)}%
       </td>
 
-      {/* Next 5 fixture chips */}
+      {/* Next 5 GWs' fixture chips (backend windows by gameweek, so a double
+          gameweek may yield more than 5 fixtures) */}
       <td className="px-3 py-2">
         <div className="flex gap-1 flex-wrap">
-          {player.fixtures.slice(0, 5).map((f, i) => {
+          {player.fixtures.map((f, i) => {
               const oppTeam = teams?.find(t => t.short_name === f.opp);
               return (
                 <FixtureChip
