@@ -52,6 +52,8 @@ type Store interface {
 	UpsertManagers(ctx context.Context, managers []fantasy.Manager) error
 	UpsertPicks(ctx context.Context, picks []fantasy.ManagerPick) error
 	RecomputeTopNOwnerships(ctx context.Context, gameID string, topNOptions []int, gw int) error
+	PruneStalePicks(ctx context.Context, gameID string, currentGW int) error
+	PruneRanklessManagers(ctx context.Context, gameID string) error
 	RecomputeTeamForm(ctx context.Context, gameID string, gwWindow int) error
 	QueryTeams(ctx context.Context, gameID string, window int, sort string) ([]store.TeamRow, error)
 	QueryFixtures(ctx context.Context, gameID string, fromGW, toGW int) ([]store.FixtureRow, error)
@@ -221,6 +223,19 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 
 		if err := s.store.RecomputeTopNOwnerships(ctx, gameID, topNOptions, gw); err != nil {
 			concErr[1] = fmt.Errorf("RecomputeTopNOwnerships: %w", err)
+			return
+		}
+
+		// Ownership only ever reads the current gameweek's picks, so drop every
+		// other gameweek's rows to keep manager_picks from growing unbounded.
+		if err := s.store.PruneStalePicks(ctx, gameID, gw); err != nil {
+			slog.Warn("PruneStalePicks failed", "game", gameID, "gw", gw, "err", err)
+		}
+
+		// Managers left rankless by ResetManagerRanks (dropped out of the top-N)
+		// are read by nothing; drop them so the table doesn't grow with churn.
+		if err := s.store.PruneRanklessManagers(ctx, gameID); err != nil {
+			slog.Warn("PruneRanklessManagers failed", "game", gameID, "err", err)
 		}
 	}()
 
