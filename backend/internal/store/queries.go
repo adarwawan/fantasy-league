@@ -86,7 +86,11 @@ var validSortCols = map[string]string{
 	"name":             "p.name ASC",
 }
 
-// QueryPlayers returns players for a game with next-5-fixtures joined.
+// QueryPlayers returns players for a game with fixtures over the next 5
+// gameweeks joined (the fixed GW range [next_gw, next_gw+4]). Windowing is a
+// calendar-GW range, not a fixture or per-team count: a double gameweek yields
+// extra fixtures within the range, a blank gameweek yields fewer, and neither
+// spills the window past next_gw+4.
 // sort must be one of the keys in validSortCols; defaults to global_ownership.
 // pos filters by position ("" = all). maxPrice = 0 means no filter.
 // topN selects which ownership tier to join from player_top_n_ownerships.
@@ -109,7 +113,9 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			FROM fixtures f
 			JOIN teams at ON at.id = f.away_team_id
 			LEFT JOIN match_odds mo ON mo.fixture_id = f.id
-			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
+			WHERE f.game_id = $1 AND NOT f.finished
+			  AND f.gw >= (SELECT gw FROM next_gw)
+			  AND f.gw <  (SELECT gw FROM next_gw) + 5
 			UNION ALL
 			SELECT
 				f.away_team_id AS team_id, f.gw,
@@ -119,12 +125,10 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			FROM fixtures f
 			JOIN teams ht ON ht.id = f.home_team_id
 			LEFT JOIN match_odds mo ON mo.fixture_id = f.id
-			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
+			WHERE f.game_id = $1 AND NOT f.finished
+			  AND f.gw >= (SELECT gw FROM next_gw)
+			  AND f.gw <  (SELECT gw FROM next_gw) + 5
 		),
-		ranked AS (
-			SELECT *, ROW_NUMBER() OVER (PARTITION BY team_id ORDER BY gw, kickoff_time) AS rn FROM team_fixtures
-		),
-		top5 AS (SELECT * FROM ranked WHERE rn <= 5),
 		player_fixtures AS (
 			SELECT
 				p.id AS player_id,
@@ -139,7 +143,7 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 					'[]'::json
 				) AS fixtures
 			FROM players p
-			LEFT JOIN top5 tf ON tf.team_id = p.team_id
+			LEFT JOIN team_fixtures tf ON tf.team_id = p.team_id
 			WHERE p.game_id = $1
 			GROUP BY p.id
 		)
@@ -356,8 +360,12 @@ func (s *Store) QueryRecentPlayerStatLines(ctx context.Context, gameID string, w
 	return out, rows.Err()
 }
 
-// QueryTeams returns all teams for a game with next-N-fixtures joined, xG and CS%
-// pulled from match_odds, and aggregate xg_sum / cs_avg over the window.
+// QueryTeams returns all teams for a game with fixtures over the next N
+// gameweeks joined (the fixed GW range [next_gw, next_gw+window-1]), xG and CS%
+// pulled from match_odds, and aggregate xg_sum / cs_avg over that range.
+// Windowing is a calendar-GW range, not a fixture or per-team count: a double
+// gameweek contributes all of its fixtures (xg_sum sums over them), a blank
+// gameweek contributes none, and neither shifts the window's upper bound.
 // window is clamped to [1, 10] and defaults to 5. sort must be one of
 // "xg_sum", "cs_avg", or "ovr_form" (default).
 func (s *Store) QueryTeams(ctx context.Context, gameID string, window int, sort string) ([]TeamRow, error) {
@@ -384,7 +392,9 @@ func (s *Store) QueryTeams(ctx context.Context, gameID string, window int, sort 
 			FROM fixtures f
 			JOIN teams at ON at.id = f.away_team_id
 			LEFT JOIN match_odds mo ON mo.fixture_id = f.id
-			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
+			WHERE f.game_id = $1 AND NOT f.finished
+			  AND f.gw >= (SELECT gw FROM next_gw)
+			  AND f.gw <  (SELECT gw FROM next_gw) + $2
 			UNION ALL
 			SELECT
 				f.away_team_id AS team_id, f.gw,
@@ -394,18 +404,16 @@ func (s *Store) QueryTeams(ctx context.Context, gameID string, window int, sort 
 			FROM fixtures f
 			JOIN teams ht ON ht.id = f.home_team_id
 			LEFT JOIN match_odds mo ON mo.fixture_id = f.id
-			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
+			WHERE f.game_id = $1 AND NOT f.finished
+			  AND f.gw >= (SELECT gw FROM next_gw)
+			  AND f.gw <  (SELECT gw FROM next_gw) + $2
 		),
-		ranked AS (
-			SELECT *, ROW_NUMBER() OVER (PARTITION BY team_id ORDER BY gw, kickoff_time) AS rn FROM team_fixtures
-		),
-		top_n AS (SELECT * FROM ranked WHERE rn <= $2),
 		team_agg AS (
 			SELECT
 				team_id,
 				CASE WHEN COUNT(xg) > 0 THEN SUM(xg) ELSE NULL END AS xg_sum,
 				CASE WHEN COUNT(cs_pct) > 0 THEN AVG(cs_pct) ELSE NULL END AS cs_avg
-			FROM top_n
+			FROM team_fixtures
 			GROUP BY team_id
 		),
 		team_fix AS (
@@ -422,7 +430,7 @@ func (s *Store) QueryTeams(ctx context.Context, gameID string, window int, sort 
 					'[]'::json
 				) AS fixtures
 			FROM teams t
-			LEFT JOIN top_n tf ON tf.team_id = t.id
+			LEFT JOIN team_fixtures tf ON tf.team_id = t.id
 			WHERE t.game_id = $1
 			GROUP BY t.id
 		)

@@ -50,9 +50,9 @@ export function PlayerCard({
         <span className={`ml-auto font-semibold ${diffColor}`}>{diffSign}{diff.toFixed(1)}%</span>
       </div>
 
-      {/* Line 3 — fixtures */}
+      {/* Line 3 — fixtures (next 5 GWs; double gameweeks may exceed 5) */}
       <div className="mt-1.5 flex flex-wrap gap-1">
-        {player.fixtures.slice(0, 5).map((f, i) => {
+        {player.fixtures.map((f, i) => {
           const oppTeam = teams?.find(t => t.short_name === f.opp);
           return (
             <FixtureChip
