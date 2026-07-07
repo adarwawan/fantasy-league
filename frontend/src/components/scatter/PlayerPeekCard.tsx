@@ -57,10 +57,11 @@ export function PlayerPeekCard({ player, avgFdr, onDetails, onClose }: Props) {
           </button>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 mt-3 text-center">
+        <div className="grid grid-cols-5 gap-2 mt-3 text-center">
           <Stat label="Form"   value={player.form.toFixed(1)} />
           <Stat label="G.own"  value={`${player.global_ownership.toFixed(0)}%`} />
           <Stat label="T-N"    value={`${player.top_n_ownership.toFixed(0)}%`} />
+          <Stat label="EO"     value={`${player.effective_ownership.toFixed(0)}%`} />
           <Stat label="FDR"    value={avgFdr.toFixed(1)} />
         </div>
 

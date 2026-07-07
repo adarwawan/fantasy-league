@@ -300,7 +300,9 @@ func TestMapPicks_normalCaptain(t *testing.T) {
 	}
 }
 
-func TestMapPicks_tripleCaptain(t *testing.T) {
+// MaxCaptainBooster is not a triple-captain chip in WCF, so it must not affect
+// the captain multiplier: the captain stays at 2 even when it is active.
+func TestMapPicks_maxCaptainBoosterIgnored(t *testing.T) {
 	captainID := 10
 	entry := &wcfPickEntry{
 		Captain:           &captainID,
@@ -312,8 +314,8 @@ func TestMapPicks_tripleCaptain(t *testing.T) {
 	if len(picks) == 0 {
 		t.Fatal("no picks")
 	}
-	if picks[0].Multiplier != 3 {
-		t.Errorf("triple captain: expected multiplier 3, got %d", picks[0].Multiplier)
+	if picks[0].Multiplier != 2 {
+		t.Errorf("captain: expected multiplier 2 (booster ignored), got %d", picks[0].Multiplier)
 	}
 }
 
@@ -321,21 +323,6 @@ func TestMapPicks_nil(t *testing.T) {
 	picks := mapPicks(1, 1, nil)
 	if picks != nil {
 		t.Errorf("expected nil picks for nil entry")
-	}
-}
-
-func TestIsActiveChip(t *testing.T) {
-	if isActiveChip(nil) {
-		t.Error("nil should be inactive")
-	}
-	if isActiveChip(false) {
-		t.Error("false should be inactive")
-	}
-	if !isActiveChip(true) {
-		t.Error("true should be active")
-	}
-	if !isActiveChip(map[string]interface{}{"id": 1}) {
-		t.Error("non-nil non-bool should be active")
 	}
 }
 

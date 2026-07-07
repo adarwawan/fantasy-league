@@ -142,16 +142,13 @@ func mapManagers(entries []wcfRankEntry) []fantasy.Manager {
 // mapPicks builds picks from the history response.
 // Lineup players are ordered GK→DEF→MID→FWD (the map[string][]int keys).
 // Bench players follow in BenchOrder sequence with multiplier 0.
-// Captain gets multiplier 2 (3 if MaxCaptainBooster chip is active).
+// Captain gets multiplier 2.
 func mapPicks(managerID int, gw int, entry *wcfPickEntry) []fantasy.ManagerPick {
 	if entry == nil {
 		return nil
 	}
 
-	captainMult := 2
-	if isActiveChip(entry.MaxCaptainBooster) {
-		captainMult = 3
-	}
+	const captainMult = 2
 
 	captainID := 0
 	viceID := 0
@@ -215,17 +212,6 @@ func sortedBench(entry *wcfPickEntry) []int {
 		ids = append(ids, entry.Bench[pos]...)
 	}
 	return ids
-}
-
-// isActiveChip returns true when a chip field holds a non-nil, non-false value.
-func isActiveChip(v interface{}) bool {
-	if v == nil {
-		return false
-	}
-	if b, ok := v.(bool); ok {
-		return b
-	}
-	return true
 }
 
 // extractRanks sorts entries by OverallRank ascending before mapping.

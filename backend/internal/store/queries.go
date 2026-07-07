@@ -31,6 +31,7 @@ type PlayerRow struct {
 	Form            float64
 	GlobalOwnership float64
 	TopNOwnership   float64
+	EffectiveOwn    float64
 	Status          string
 	News            string
 	Fixtures        []FixtureInfo
@@ -79,11 +80,12 @@ var validTeamSortCols = map[string]string{
 }
 
 var validSortCols = map[string]string{
-	"global_ownership": "p.global_ownership DESC",
-	"top_n_ownership":  "COALESCE(o.ownership, 0) DESC",
-	"form":             "p.form DESC",
-	"price":            "p.price DESC",
-	"name":             "p.name ASC",
+	"global_ownership":    "p.global_ownership DESC",
+	"top_n_ownership":     "COALESCE(o.ownership, 0) DESC",
+	"effective_ownership": "COALESCE(o.effective_ownership, 0) DESC",
+	"form":                "p.form DESC",
+	"price":               "p.price DESC",
+	"name":                "p.name ASC",
 }
 
 // QueryPlayers returns players for a game with fixtures over the next 5
@@ -151,7 +153,7 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			p.id, p.game_id, p.name,
 			t.id, t.short_name, t.name,
 			p.position, p.price, p.form,
-			p.global_ownership, COALESCE(o.ownership, 0),
+			p.global_ownership, COALESCE(o.ownership, 0), COALESCE(o.effective_ownership, 0),
 			p.status, COALESCE(p.news, ''),
 			pf.fixtures
 		FROM players p
@@ -178,7 +180,7 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			&r.ID, &r.GameID, &r.Name,
 			&r.TeamID, &r.TeamShortName, &r.TeamName,
 			&r.Position, &r.Price, &r.Form,
-			&r.GlobalOwnership, &r.TopNOwnership,
+			&r.GlobalOwnership, &r.TopNOwnership, &r.EffectiveOwn,
 			&r.Status, &r.News, &fixturesJSON,
 		); err != nil {
 			return nil, fmt.Errorf("scan player: %w", err)

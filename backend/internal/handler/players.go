@@ -56,19 +56,20 @@ type teamJSON struct {
 }
 
 type playerJSON struct {
-	ID              string        `json:"id"`
-	GameID          string        `json:"game_id"`
-	Name            string        `json:"name"`
-	Team            teamJSON      `json:"team"`
-	Position        string        `json:"position"`
-	Price           float64       `json:"price"`
-	Form            float64       `json:"form"`
-	GlobalOwnership float64       `json:"global_ownership"`
-	TopNOwnership   float64       `json:"top_n_ownership"`
-	Status          string        `json:"status"`
-	News            string        `json:"news"`
-	MustHave        bool          `json:"must_have"`
-	Fixtures        []fixtureJSON `json:"fixtures"`
+	ID              string         `json:"id"`
+	GameID          string         `json:"game_id"`
+	Name            string         `json:"name"`
+	Team            teamJSON       `json:"team"`
+	Position        string         `json:"position"`
+	Price           float64        `json:"price"`
+	Form            float64        `json:"form"`
+	GlobalOwnership float64        `json:"global_ownership"`
+	TopNOwnership   float64        `json:"top_n_ownership"`
+	EffectiveOwn    float64        `json:"effective_ownership"`
+	Status          string         `json:"status"`
+	News            string         `json:"news"`
+	MustHave        bool           `json:"must_have"`
+	Fixtures        []fixtureJSON  `json:"fixtures"`
 	RecentPoints    []gwPointsJSON `json:"recent_points"`
 }
 
@@ -78,11 +79,11 @@ type gwPointsJSON struct {
 }
 
 type metaJSON struct {
-	GameID    string    `json:"game_id"`
-	GW        int       `json:"gw"`
-	TopNSize  int       `json:"top_n_size"`
-	CachedAt  time.Time `json:"cached_at"`
-	Total     int       `json:"total"`
+	GameID   string    `json:"game_id"`
+	GW       int       `json:"gw"`
+	TopNSize int       `json:"top_n_size"`
+	CachedAt time.Time `json:"cached_at"`
+	Total    int       `json:"total"`
 }
 
 type playersResponse struct {
@@ -174,11 +175,12 @@ func canonicalPos(pos string) string {
 // validPlayerSorts mirrors the sort keys accepted by store.QueryPlayers. Any
 // other value canonicalizes to the default so cache keys stay bounded.
 var validPlayerSorts = map[string]bool{
-	"global_ownership": true,
-	"top_n_ownership":  true,
-	"form":             true,
-	"price":            true,
-	"name":             true,
+	"global_ownership":    true,
+	"top_n_ownership":     true,
+	"effective_ownership": true,
+	"form":                true,
+	"price":               true,
+	"name":                true,
 }
 
 // canonicalPlayerSort normalizes the sort param to a known sort key, defaulting
@@ -290,6 +292,7 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mus
 			Form:            r.Form,
 			GlobalOwnership: r.GlobalOwnership,
 			TopNOwnership:   r.TopNOwnership,
+			EffectiveOwn:    r.EffectiveOwn,
 			Status:          r.Status,
 			News:            r.News,
 			MustHave:        mustHave[r.ID],

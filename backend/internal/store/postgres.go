@@ -298,19 +298,24 @@ func (s *Store) RecomputeTopNOwnerships(ctx context.Context, gameID string, topN
 				  AND overall_rank <= $2
 			),
 			pick_counts AS (
-				SELECT player_id, COUNT(*) AS owned_by
+				SELECT player_id,
+				       COUNT(*)        AS owned_by,
+				       SUM(multiplier) AS weighted
 				FROM manager_picks
 				WHERE game_id    = $1
 				  AND gw         = $3
 				  AND manager_id IN (SELECT id FROM top_managers)
 				GROUP BY player_id
 			)
-			INSERT INTO player_top_n_ownerships (player_id, top_n, ownership)
-			SELECT pc.player_id, $2, ROUND(pc.owned_by::numeric / $2 * 100, 2)
+			INSERT INTO player_top_n_ownerships (player_id, top_n, ownership, effective_ownership)
+			SELECT pc.player_id, $2,
+			       ROUND(pc.owned_by::numeric / $2 * 100, 2),
+			       ROUND(pc.weighted::numeric / $2 * 100, 2)
 			FROM   pick_counts pc
 			JOIN   players p ON p.id = pc.player_id AND p.game_id = $1
 			ON CONFLICT (player_id, top_n) DO UPDATE
-			  SET ownership = EXCLUDED.ownership
+			  SET ownership           = EXCLUDED.ownership,
+			      effective_ownership = EXCLUDED.effective_ownership
 		`, gameID, topN, gw)
 		if err != nil {
 			return fmt.Errorf("RecomputeTopNOwnerships topN=%d: %w", topN, err)

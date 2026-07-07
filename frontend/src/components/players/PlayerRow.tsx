@@ -117,6 +117,11 @@ export const PlayerRow = forwardRef<HTMLTableRowElement, PlayerRowProps>(functio
         <OwnershipBar value={player.top_n_ownership} position={player.position} />
       </td>
 
+      {/* Effective ownership bar (multiplier-weighted; can exceed 100%) */}
+      <td className="px-3 py-2">
+        <OwnershipBar value={player.effective_ownership} position={player.position} max={100} />
+      </td>
+
       {/* Differential */}
       <td className={`px-3 py-2 text-sm font-semibold text-right tabular-nums ${diffColor}`}>
         {diffSign}{diff.toFixed(1)}%

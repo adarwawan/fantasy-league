@@ -1,8 +1,9 @@
-export type AxisKey = 'global_ownership' | 'top_n_ownership' | 'form' | 'avg_fdr';
+export type AxisKey = 'global_ownership' | 'top_n_ownership' | 'effective_ownership' | 'form' | 'avg_fdr';
 
 export const AXIS_OPTIONS: { value: AxisKey; label: string }[] = [
   { value: 'global_ownership', label: 'Global Own %' },
   { value: 'top_n_ownership', label: 'Top-N Own %' },
+  { value: 'effective_ownership', label: 'Effective Own %' },
   { value: 'form',            label: 'Form' },
   { value: 'avg_fdr',         label: 'Avg FDR (next 3)' },
 ];

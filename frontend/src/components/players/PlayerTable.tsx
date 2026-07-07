@@ -25,6 +25,7 @@ const columns = [
   ch.accessor('form',             { header: 'Form',         enableSorting: true }),
   ch.accessor('global_ownership', { header: 'Global %',     enableSorting: true }),
   ch.accessor('top_n_ownership',  { header: 'Top-N %',      enableSorting: true }),
+  ch.accessor('effective_ownership', { header: 'EO %',      enableSorting: true }),
   ch.accessor(r => r.top_n_ownership - r.global_ownership, {
     id: 'differential',
     header: 'Diff',
@@ -44,6 +45,7 @@ const DEFAULT_LIMIT = 50;
 const SORT_OPTIONS: { id: string; label: string }[] = [
   { id: 'global_ownership', label: 'Global %' },
   { id: 'top_n_ownership',  label: 'Top-N %'  },
+  { id: 'effective_ownership', label: 'EO %'  },
   { id: 'differential',     label: 'Diff'     },
   { id: 'form',             label: 'Form'     },
   { id: 'price',            label: 'Price'    },

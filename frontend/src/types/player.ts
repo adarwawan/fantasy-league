@@ -22,6 +22,7 @@ export interface Player {
   form:              number;
   global_ownership:  number;
   top_n_ownership:   number;
+  effective_ownership: number;
   top_n_size:        number;
   status:            'available' | 'doubt' | 'injured';
   news:              string;

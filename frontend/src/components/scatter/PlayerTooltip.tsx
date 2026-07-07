@@ -33,6 +33,10 @@ export function PlayerTooltip({ player, avgFdr }: Props) {
           <span className="font-medium">{player.top_n_ownership.toFixed(1)}%</span>
         </div>
         <div className="flex justify-between gap-4">
+          <span>Effective own</span>
+          <span className="font-medium">{player.effective_ownership.toFixed(1)}%</span>
+        </div>
+        <div className="flex justify-between gap-4">
           <span>Avg FDR</span>
           <span className="font-medium">{avgFdr.toFixed(2)}</span>
         </div>

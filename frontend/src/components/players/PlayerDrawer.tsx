@@ -104,6 +104,10 @@ export function PlayerDrawer({ player, teams, onClose }: Props) {
                   <p className="text-sm font-semibold text-slate-100 tabular-nums">{value}</p>
                 </div>
               ))}
+              <div className="col-span-2 bg-slate-800/80 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">Effective Own % (multiplier-weighted)</p>
+                <p className="text-sm font-semibold text-slate-100 tabular-nums">{player.effective_ownership.toFixed(1)}%</p>
+              </div>
             </div>
 
             {/* Differential */}
