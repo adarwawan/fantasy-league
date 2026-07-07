@@ -195,7 +195,18 @@ func TestMapGWStats(t *testing.T) {
 	elements[0].Stats.Assists = 1
 	elements[0].Stats.Bonus = 3
 	elements[0].Stats.CleanSheets = 1
-	elements[0].Stats.DefCon = 12
+	elements[0].Stats.DefCon = 24 // aggregate action count — must be ignored in favour of per-fixture points
+	// Double gameweek: DC points evaluated per fixture (2 + 2 = 4), not from the
+	// summed action count. A non-DC identifier is included to verify filtering.
+	elements[0].Explain = []fplExplain{
+		{Stats: []fplExplainStat{
+			{Identifier: "minutes", Points: 2, Value: 90},
+			{Identifier: "defensive_contribution", Points: 2, Value: 12},
+		}},
+		{Stats: []fplExplainStat{
+			{Identifier: "defensive_contribution", Points: 2, Value: 13},
+		}},
+	}
 
 	stats := mapGWStats(30, elements)
 	if len(stats) != 2 {
@@ -214,7 +225,7 @@ func TestMapGWStats(t *testing.T) {
 	if s.Points != 12 || s.Minutes != 90 || s.Goals != 2 || s.Assists != 1 || s.Bonus != 3 {
 		t.Errorf("unexpected stat line: %+v", s)
 	}
-	if s.CleanSheets != 1 || s.DefCon != 12 {
+	if s.CleanSheets != 1 || s.DefCon != 4 {
 		t.Errorf("unexpected defensive stat line: %+v", s)
 	}
 	if stats[1].Points != 0 {

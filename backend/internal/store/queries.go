@@ -122,7 +122,7 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
 		),
 		ranked AS (
-			SELECT *, ROW_NUMBER() OVER (PARTITION BY team_id ORDER BY gw) AS rn FROM team_fixtures
+			SELECT *, ROW_NUMBER() OVER (PARTITION BY team_id ORDER BY gw, kickoff_time) AS rn FROM team_fixtures
 		),
 		top5 AS (SELECT * FROM ranked WHERE rn <= 5),
 		player_fixtures AS (
@@ -134,7 +134,7 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 							'gw', tf.gw, 'opp', tf.opp, 'ha', tf.ha,
 							'difficulty', tf.difficulty, 'kickoff', tf.kickoff_time,
 							'xg', tf.xg, 'cs_pct', tf.cs_pct
-						) ORDER BY tf.gw
+						) ORDER BY tf.gw, tf.kickoff_time
 					) FILTER (WHERE tf.team_id IS NOT NULL),
 					'[]'::json
 				) AS fixtures
@@ -314,7 +314,7 @@ type PlayerStatGW struct {
 	Assists               int
 	CleanSheets           int
 	Bonus                 int
-	DefensiveContribution int // raw CBIT/recovery action count for the GW
+	DefensiveContribution int // defensive-contribution points for the GW (0/2/4), summed per fixture
 }
 
 // QueryRecentPlayerStatLines returns every player's raw per-gameweek stat lines
@@ -397,7 +397,7 @@ func (s *Store) QueryTeams(ctx context.Context, gameID string, window int, sort 
 			WHERE f.game_id = $1 AND NOT f.finished AND f.gw >= (SELECT gw FROM next_gw)
 		),
 		ranked AS (
-			SELECT *, ROW_NUMBER() OVER (PARTITION BY team_id ORDER BY gw) AS rn FROM team_fixtures
+			SELECT *, ROW_NUMBER() OVER (PARTITION BY team_id ORDER BY gw, kickoff_time) AS rn FROM team_fixtures
 		),
 		top_n AS (SELECT * FROM ranked WHERE rn <= $2),
 		team_agg AS (
@@ -417,7 +417,7 @@ func (s *Store) QueryTeams(ctx context.Context, gameID string, window int, sort 
 							'gw', tf.gw, 'opp', tf.opp, 'ha', tf.ha,
 							'difficulty', tf.difficulty, 'kickoff', tf.kickoff_time,
 							'xg', tf.xg, 'cs_pct', tf.cs_pct
-						) ORDER BY tf.gw
+						) ORDER BY tf.gw, tf.kickoff_time
 					) FILTER (WHERE tf.team_id IS NOT NULL),
 					'[]'::json
 				) AS fixtures

@@ -120,6 +120,21 @@ type fplLiveElement struct {
 		CleanSheets int `json:"clean_sheets"`
 		DefCon      int `json:"defensive_contribution"`
 	} `json:"stats"`
+	// Explain holds the per-fixture points breakdown. During a double gameweek a
+	// player has one entry per fixture, so threshold-based components (e.g.
+	// defensive contribution) must be summed per fixture rather than derived from
+	// the aggregate stats value, which would apply the threshold only once.
+	Explain []fplExplain `json:"explain"`
+}
+
+type fplExplain struct {
+	Stats []fplExplainStat `json:"stats"`
+}
+
+type fplExplainStat struct {
+	Identifier string `json:"identifier"`
+	Points     int    `json:"points"`
+	Value      int    `json:"value"`
 }
 
 type picksResponse struct {
