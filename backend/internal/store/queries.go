@@ -321,6 +321,9 @@ type PlayerStatGW struct {
 	CleanSheets           int
 	Bonus                 int
 	DefensiveContribution int // defensive-contribution points for the GW (0/2/4), summed per fixture
+	Influence             float64
+	Creativity            float64
+	Threat                float64
 }
 
 // QueryRecentPlayerStatLines returns every player's raw per-gameweek stat lines
@@ -336,7 +339,8 @@ func (s *Store) QueryRecentPlayerStatLines(ctx context.Context, gameID string, w
 		)
 		SELECT
 			p.id::text, p.position, p.name, t.short_name,
-			s.goals, s.assists, s.clean_sheets, s.bonus, s.defensive_contribution
+			s.goals, s.assists, s.clean_sheets, s.bonus, s.defensive_contribution,
+			s.influence, s.creativity, s.threat
 		FROM player_gw_stats s
 		JOIN recent r ON r.gw = s.gw
 		JOIN players p ON p.id = s.player_id
@@ -354,6 +358,7 @@ func (s *Store) QueryRecentPlayerStatLines(ctx context.Context, gameID string, w
 		if err := rows.Scan(
 			&r.PlayerID, &r.Position, &r.Name, &r.TeamShortName,
 			&r.Goals, &r.Assists, &r.CleanSheets, &r.Bonus, &r.DefensiveContribution,
+			&r.Influence, &r.Creativity, &r.Threat,
 		); err != nil {
 			return nil, fmt.Errorf("scan player stat line: %w", err)
 		}

@@ -196,6 +196,9 @@ func TestMapGWStats(t *testing.T) {
 	elements[0].Stats.Bonus = 3
 	elements[0].Stats.CleanSheets = 1
 	elements[0].Stats.DefCon = 24 // aggregate action count — must be ignored in favour of per-fixture points
+	elements[0].Stats.Influence = "35.4"
+	elements[0].Stats.Creativity = "12.8"
+	elements[0].Stats.Threat = "57.0"
 	// Double gameweek: DC points evaluated per fixture (2 + 2 = 4), not from the
 	// summed action count. A non-DC identifier is included to verify filtering.
 	elements[0].Explain = []fplExplain{
@@ -227,6 +230,12 @@ func TestMapGWStats(t *testing.T) {
 	}
 	if s.CleanSheets != 1 || s.DefCon != 4 {
 		t.Errorf("unexpected defensive stat line: %+v", s)
+	}
+	if s.Influence != 35.4 || s.Creativity != 12.8 || s.Threat != 57.0 {
+		t.Errorf("unexpected ICT stat line: %+v", s)
+	}
+	if stats[1].Influence != 0 || stats[1].Creativity != 0 || stats[1].Threat != 0 {
+		t.Errorf("expected zero ICT for empty stats, got %+v", stats[1])
 	}
 	if stats[1].Points != 0 {
 		t.Errorf("expected zero points for empty stats, got %d", stats[1].Points)

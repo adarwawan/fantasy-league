@@ -71,6 +71,8 @@ func componentPoints(position, component string, count int) int {
 }
 
 // statComponents is the fixed set of scoring components ranked per position.
+// ICT components are not ranked here — they live in the team-share view
+// (stats_teams.go), which is the better frame for an index that isn't points.
 var statComponents = []string{"goals", "assists", "clean_sheet", "bonus", "defensive_con"}
 
 // pointScoredComponents are the counting components whose per-player totals are

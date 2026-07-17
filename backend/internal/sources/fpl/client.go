@@ -119,6 +119,10 @@ type fplLiveElement struct {
 		Bonus       int `json:"bonus"`
 		CleanSheets int `json:"clean_sheets"`
 		DefCon      int `json:"defensive_contribution"`
+		// ICT components arrive as decimal strings, e.g. "38.2".
+		Influence  string `json:"influence"`
+		Creativity string `json:"creativity"`
+		Threat     string `json:"threat"`
 	} `json:"stats"`
 	// Explain holds the per-fixture points breakdown. During a double gameweek a
 	// player has one entry per fixture, so threshold-based components (e.g.
