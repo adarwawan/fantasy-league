@@ -1,6 +1,7 @@
 import type { Player } from '../../types/player';
 import type { Team } from '../../types/team';
 import { PositionBadge } from '../common/PositionBadge';
+import { SetPieceBadges } from '../common/SetPieceBadge';
 import { FixtureChip } from './FixtureChip';
 
 const STATUS_DOT: Record<Player['status'], string> = {
@@ -35,6 +36,8 @@ export function PlayerCard({
         <div className="flex items-center gap-1.5 min-w-0">
           <span className={`shrink-0 w-2 h-2 rounded-full ${STATUS_DOT[player.status]}`} title={player.news || player.status} />
           <span className="text-sm font-semibold text-slate-100 truncate">{player.name}</span>
+          {/* First- and second-choice set-piece duties; full order in the drawer */}
+          <SetPieceBadges player={player} maxOrder={2} />
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-xs text-slate-400">{player.team.short_name}</span>

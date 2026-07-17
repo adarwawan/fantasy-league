@@ -58,11 +58,11 @@ func (s *Store) UpsertPlayers(ctx context.Context, players []fantasy.Player) err
 			return fmt.Errorf("player %d: invalid team id %q: %w", p.ExternalID, p.TeamID, err)
 		}
 		_, err = s.db.Exec(ctx, `
-			INSERT INTO players (game_id, external_id, name, team_id, position, price, form, global_ownership, status, news, updated_at)
+			INSERT INTO players (game_id, external_id, name, team_id, position, price, form, global_ownership, status, news, penalties_order, direct_freekicks_order, corners_indirect_freekicks_order, updated_at)
 			VALUES (
 				$1, $2, $3,
 				(SELECT id FROM teams WHERE game_id = $1 AND external_id = $4),
-				$5, $6, $7, $8, $9, $10, $11
+				$5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 			)
 			ON CONFLICT (game_id, external_id) DO UPDATE SET
 				name             = EXCLUDED.name,
@@ -73,8 +73,11 @@ func (s *Store) UpsertPlayers(ctx context.Context, players []fantasy.Player) err
 				global_ownership = EXCLUDED.global_ownership,
 				status           = EXCLUDED.status,
 				news             = EXCLUDED.news,
+				penalties_order                  = EXCLUDED.penalties_order,
+				direct_freekicks_order           = EXCLUDED.direct_freekicks_order,
+				corners_indirect_freekicks_order = EXCLUDED.corners_indirect_freekicks_order,
 				updated_at       = EXCLUDED.updated_at
-		`, p.GameID, p.ExternalID, p.Name, extTeamID, p.Position, p.Price, p.Form, p.GlobalOwnership, p.Status, p.News, p.UpdatedAt)
+		`, p.GameID, p.ExternalID, p.Name, extTeamID, p.Position, p.Price, p.Form, p.GlobalOwnership, p.Status, p.News, p.PenaltiesOrder, p.DirectFreekicksOrder, p.CornersIndirectOrder, p.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("upsert player %d: %w", p.ExternalID, err)
 		}

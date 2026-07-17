@@ -3,6 +3,7 @@ import type { Row } from '@tanstack/react-table';
 import type { Player } from '../../types/player';
 import type { Team } from '../../types/team';
 import { PositionBadge } from '../common/PositionBadge';
+import { SetPieceBadges } from '../common/SetPieceBadge';
 import { FixtureChip } from './FixtureChip';
 
 const STATUS_DOT: Record<Player['status'], string> = {
@@ -86,6 +87,8 @@ export const PlayerRow = forwardRef<HTMLTableRowElement, PlayerRowProps>(functio
           <span className="cursor-default" title={player.news || undefined}>
             {player.name}
           </span>
+          {/* First- and second-choice set-piece duties; full order in the drawer */}
+          <SetPieceBadges player={player} maxOrder={2} />
         </div>
       </td>
 

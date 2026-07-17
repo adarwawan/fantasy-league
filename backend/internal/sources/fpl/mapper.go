@@ -55,17 +55,20 @@ func mapPlayers(raw []fplPlayer) []fantasy.Player {
 		globalOwn := parseFloat(p.SelectedByPercent)
 
 		players = append(players, fantasy.Player{
-			GameID:          gameID,
-			ExternalID:      p.ID,
-			Name:            p.WebName,
-			TeamID:          strconv.Itoa(p.Team),
-			Position:        pos,
-			Price:           float64(p.NowCost) / 10.0,
-			Form:            form,
-			GlobalOwnership: globalOwn,
-			Status:          status,
-			News:            p.News,
-			UpdatedAt:       time.Now().UTC(),
+			GameID:               gameID,
+			ExternalID:           p.ID,
+			Name:                 p.WebName,
+			TeamID:               strconv.Itoa(p.Team),
+			Position:             pos,
+			Price:                float64(p.NowCost) / 10.0,
+			Form:                 form,
+			GlobalOwnership:      globalOwn,
+			Status:               status,
+			News:                 p.News,
+			PenaltiesOrder:       p.PenaltiesOrder,
+			DirectFreekicksOrder: p.DirectFreekicksOrder,
+			CornersIndirectOrder: p.CornersIndirectOrder,
+			UpdatedAt:            time.Now().UTC(),
 		})
 	}
 	return players

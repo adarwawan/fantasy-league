@@ -34,7 +34,11 @@ type PlayerRow struct {
 	EffectiveOwn    float64
 	Status          string
 	News            string
-	Fixtures        []FixtureInfo
+	// Set-piece taker ranks (1 = first choice), nil when the player has no duty.
+	PenaltiesOrder       *int
+	DirectFreekicksOrder *int
+	CornersIndirectOrder *int
+	Fixtures             []FixtureInfo
 }
 
 // PlayerOwnership is the minimal read model used for ownership ranking.
@@ -155,6 +159,7 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			p.position, p.price, p.form,
 			p.global_ownership, COALESCE(o.ownership, 0), COALESCE(o.effective_ownership, 0),
 			p.status, COALESCE(p.news, ''),
+			p.penalties_order, p.direct_freekicks_order, p.corners_indirect_freekicks_order,
 			pf.fixtures
 		FROM players p
 		JOIN teams t ON t.id = p.team_id
@@ -181,7 +186,9 @@ func (s *Store) QueryPlayers(ctx context.Context, gameID, pos string, maxPrice f
 			&r.TeamID, &r.TeamShortName, &r.TeamName,
 			&r.Position, &r.Price, &r.Form,
 			&r.GlobalOwnership, &r.TopNOwnership, &r.EffectiveOwn,
-			&r.Status, &r.News, &fixturesJSON,
+			&r.Status, &r.News,
+			&r.PenaltiesOrder, &r.DirectFreekicksOrder, &r.CornersIndirectOrder,
+			&fixturesJSON,
 		); err != nil {
 			return nil, fmt.Errorf("scan player: %w", err)
 		}

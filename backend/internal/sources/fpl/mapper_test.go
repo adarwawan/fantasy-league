@@ -23,8 +23,9 @@ func TestMapTeams(t *testing.T) {
 }
 
 func TestMapPlayers(t *testing.T) {
+	pen1, ck2 := 1, 2
 	raw := []fplPlayer{
-		{ID: 328, WebName: "Salah", Team: 14, ElementType: 3, NowCost: 129, Form: "8.4", SelectedByPercent: "43.2", Status: "a", News: ""},
+		{ID: 328, WebName: "Salah", Team: 14, ElementType: 3, NowCost: 129, Form: "8.4", SelectedByPercent: "43.2", Status: "a", News: "", PenaltiesOrder: &pen1, CornersIndirectOrder: &ck2},
 		{ID: 1,   WebName: "Raya",  Team: 1,  ElementType: 1, NowCost: 55,  Form: "0",   SelectedByPercent: "5.1",  Status: "d", News: "Knock"},
 		{ID: 2,   WebName: "Saka",  Team: 1,  ElementType: 3, NowCost: 99,  Form: "",    SelectedByPercent: "",     Status: "i", News: "Injured"},
 	}
@@ -50,10 +51,22 @@ func TestMapPlayers(t *testing.T) {
 	if salah.Status != "available" {
 		t.Errorf("Salah status: expected available, got %s", salah.Status)
 	}
+	if salah.PenaltiesOrder == nil || *salah.PenaltiesOrder != 1 {
+		t.Errorf("Salah penalties_order: expected 1, got %v", salah.PenaltiesOrder)
+	}
+	if salah.CornersIndirectOrder == nil || *salah.CornersIndirectOrder != 2 {
+		t.Errorf("Salah corners_order: expected 2, got %v", salah.CornersIndirectOrder)
+	}
+	if salah.DirectFreekicksOrder != nil {
+		t.Errorf("Salah freekicks_order: expected nil, got %v", salah.DirectFreekicksOrder)
+	}
 
 	raya := players[1]
 	if raya.Position != "GK" {
 		t.Errorf("Raya position: expected GK, got %s", raya.Position)
+	}
+	if raya.PenaltiesOrder != nil || raya.DirectFreekicksOrder != nil || raya.CornersIndirectOrder != nil {
+		t.Errorf("Raya set-piece orders: expected all nil, got %+v", raya)
 	}
 	if raya.Status != "doubt" {
 		t.Errorf("Raya status: expected doubt, got %s", raya.Status)
