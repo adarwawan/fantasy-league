@@ -60,6 +60,10 @@ type PlayerGWStat struct {
 	// summed per fixture so double gameweeks are scored correctly — not the raw
 	// CBIT/recovery action count.
 	DefCon           int
+	// ICT index components for the gameweek (Opta-derived underlying stats).
+	Influence  float64
+	Creativity float64
+	Threat     float64
 }
 
 type Manager struct {

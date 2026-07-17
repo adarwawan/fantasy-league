@@ -112,6 +112,9 @@ func mapGWStats(gw int, elements []fplLiveElement) []fantasy.PlayerGWStat {
 			Bonus:            e.Stats.Bonus,
 			CleanSheets:      e.Stats.CleanSheets,
 			DefCon:           defConPoints(e.Explain),
+			Influence:        parseFloat(e.Stats.Influence),
+			Creativity:       parseFloat(e.Stats.Creativity),
+			Threat:           parseFloat(e.Stats.Threat),
 		})
 	}
 	return stats
