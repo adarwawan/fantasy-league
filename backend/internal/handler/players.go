@@ -56,21 +56,25 @@ type teamJSON struct {
 }
 
 type playerJSON struct {
-	ID              string         `json:"id"`
-	GameID          string         `json:"game_id"`
-	Name            string         `json:"name"`
-	Team            teamJSON       `json:"team"`
-	Position        string         `json:"position"`
-	Price           float64        `json:"price"`
-	Form            float64        `json:"form"`
-	GlobalOwnership float64        `json:"global_ownership"`
-	TopNOwnership   float64        `json:"top_n_ownership"`
-	EffectiveOwn    float64        `json:"effective_ownership"`
-	Status          string         `json:"status"`
-	News            string         `json:"news"`
-	MustHave        bool           `json:"must_have"`
-	Fixtures        []fixtureJSON  `json:"fixtures"`
-	RecentPoints    []gwPointsJSON `json:"recent_points"`
+	ID              string   `json:"id"`
+	GameID          string   `json:"game_id"`
+	Name            string   `json:"name"`
+	Team            teamJSON `json:"team"`
+	Position        string   `json:"position"`
+	Price           float64  `json:"price"`
+	Form            float64  `json:"form"`
+	GlobalOwnership float64  `json:"global_ownership"`
+	TopNOwnership   float64  `json:"top_n_ownership"`
+	EffectiveOwn    float64  `json:"effective_ownership"`
+	Status          string   `json:"status"`
+	News            string   `json:"news"`
+	// Set-piece taker ranks (1 = first choice), null when the player has no duty.
+	PenaltiesOrder       *int           `json:"penalties_order"`
+	DirectFreekicksOrder *int           `json:"direct_freekicks_order"`
+	CornersIndirectOrder *int           `json:"corners_indirect_freekicks_order"`
+	MustHave             bool           `json:"must_have"`
+	Fixtures             []fixtureJSON  `json:"fixtures"`
+	RecentPoints         []gwPointsJSON `json:"recent_points"`
 }
 
 type gwPointsJSON struct {
@@ -283,21 +287,24 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mus
 			recentPts[j] = gwPointsJSON{GW: gp.GW, Points: gp.Points}
 		}
 		players[i] = playerJSON{
-			ID:              r.ID,
-			GameID:          r.GameID,
-			Name:            r.Name,
-			Team:            teamJSON{ID: r.TeamID, ShortName: r.TeamShortName, Name: r.TeamName},
-			Position:        r.Position,
-			Price:           r.Price,
-			Form:            r.Form,
-			GlobalOwnership: r.GlobalOwnership,
-			TopNOwnership:   r.TopNOwnership,
-			EffectiveOwn:    r.EffectiveOwn,
-			Status:          r.Status,
-			News:            r.News,
-			MustHave:        mustHave[r.ID],
-			Fixtures:        fixtures,
-			RecentPoints:    recentPts,
+			ID:                   r.ID,
+			GameID:               r.GameID,
+			Name:                 r.Name,
+			Team:                 teamJSON{ID: r.TeamID, ShortName: r.TeamShortName, Name: r.TeamName},
+			Position:             r.Position,
+			Price:                r.Price,
+			Form:                 r.Form,
+			GlobalOwnership:      r.GlobalOwnership,
+			TopNOwnership:        r.TopNOwnership,
+			EffectiveOwn:         r.EffectiveOwn,
+			Status:               r.Status,
+			News:                 r.News,
+			PenaltiesOrder:       r.PenaltiesOrder,
+			DirectFreekicksOrder: r.DirectFreekicksOrder,
+			CornersIndirectOrder: r.CornersIndirectOrder,
+			MustHave:             mustHave[r.ID],
+			Fixtures:             fixtures,
+			RecentPoints:         recentPts,
 		}
 	}
 	return playersResponse{

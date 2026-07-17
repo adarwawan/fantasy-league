@@ -14,7 +14,13 @@ type Player struct {
 	GlobalOwnership float64
 	Status          string
 	News            string
-	UpdatedAt       time.Time
+	// Team-internal taker ranks for set-piece duties (1 = first choice), nil when
+	// the player holds no such duty. Editorially maintained by FPL, so they can
+	// lag real on-pitch changes.
+	PenaltiesOrder       *int
+	DirectFreekicksOrder *int
+	CornersIndirectOrder *int
+	UpdatedAt            time.Time
 }
 
 type Team struct {
@@ -59,7 +65,7 @@ type PlayerGWStat struct {
 	// DefCon is the defensive-contribution points earned in the gameweek (0/2/4),
 	// summed per fixture so double gameweeks are scored correctly — not the raw
 	// CBIT/recovery action count.
-	DefCon           int
+	DefCon int
 	// ICT index components for the gameweek (Opta-derived underlying stats).
 	Influence  float64
 	Creativity float64

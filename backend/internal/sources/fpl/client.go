@@ -63,6 +63,10 @@ type fplPlayer struct {
 	Status            string  `json:"status"`
 	News              string  `json:"news"`
 	Minutes           int     `json:"minutes"`
+	// Set-piece taker ranks; the API sends null for players without the duty.
+	PenaltiesOrder       *int `json:"penalties_order"`
+	DirectFreekicksOrder *int `json:"direct_freekicks_order"`
+	CornersIndirectOrder *int `json:"corners_and_indirect_freekicks_order"`
 }
 
 type fplTeam struct {

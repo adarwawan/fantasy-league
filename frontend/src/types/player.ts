@@ -26,6 +26,10 @@ export interface Player {
   top_n_size:        number;
   status:            'available' | 'doubt' | 'injured';
   news:              string;
+  // Set-piece taker ranks (1 = first choice), null when the player has no duty.
+  penalties_order:                  number | null;
+  direct_freekicks_order:           number | null;
+  corners_indirect_freekicks_order: number | null;
   must_have:         boolean;
   fixtures:          Fixture[];
   recent_points:     GWPoints[];

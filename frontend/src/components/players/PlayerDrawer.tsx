@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { GWPoints, Player } from '../../types/player';
 import type { Team } from '../../types/team';
 import { PositionBadge } from '../common/PositionBadge';
+import { DUTY_META, SetPieceBadge, setPieceDuties } from '../common/SetPieceBadge';
 import { FixtureChip } from './FixtureChip';
 
 const STATUS_DOT: Record<Player['status'], string> = {
@@ -14,6 +15,33 @@ interface Props {
   player: Player | null;
   teams?: Team[];
   onClose: () => void;
+}
+
+function ordinal(n: number): string {
+  const suffix = n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th';
+  return `${n}${suffix}`;
+}
+
+// SetPieceDuties lists every duty the player holds at any rank (the table row
+// only shows ranks 1–2).
+function SetPieceDuties({ player }: { player: Player }) {
+  const duties = setPieceDuties(player);
+  if (duties.length === 0) return null;
+  return (
+    <div className="px-4 py-3 border-b border-slate-700">
+      <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-2">Set-piece duties</p>
+      <div className="flex flex-col gap-1.5">
+        {duties.map(({ duty, order }) => (
+          <div key={duty} className="flex items-center gap-2">
+            <SetPieceBadge duty={duty} order={order} />
+            <span className="text-xs text-slate-300">
+              {DUTY_META[duty].label} — {ordinal(order)} choice
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // RecentPoints renders each recent gameweek as a bar scaled to the player's own
@@ -118,6 +146,9 @@ export function PlayerDrawer({ player, teams, onClose }: Props) {
                 <p className="text-xs text-amber-400 mt-2">{player.news}</p>
               )}
             </div>
+
+            {/* Set-piece duties */}
+            <SetPieceDuties player={player} />
 
             {/* Recent points */}
             {player.recent_points.length > 0 && (
