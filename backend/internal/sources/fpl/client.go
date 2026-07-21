@@ -198,3 +198,16 @@ func (c *client) fetchPicks(ctx context.Context, managerID, gw int) (*picksRespo
 	path := fmt.Sprintf("/entry/%d/event/%d/picks/", managerID, gw)
 	return &r, c.get(ctx, path, &r)
 }
+
+// entryResponse is the subset of /entry/{id}/ we use. Bank and value are in
+// tenths of a million (e.g. 1005 = £100.5m). LastDeadlineValue is the total
+// squad selling value plus bank at the last deadline.
+type entryResponse struct {
+	LastDeadlineBank  int `json:"last_deadline_bank"`
+	LastDeadlineValue int `json:"last_deadline_value"`
+}
+
+func (c *client) fetchEntry(ctx context.Context, managerID int) (*entryResponse, error) {
+	var r entryResponse
+	return &r, c.get(ctx, fmt.Sprintf("/entry/%d/", managerID), &r)
+}

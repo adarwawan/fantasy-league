@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -651,6 +652,42 @@ func (s *Store) QueryMatchOdds(ctx context.Context, gameID string, gws []int, ca
 	}
 
 	return filterByGW(all, gws), nil
+}
+
+// PlayerIDsByExternalIDs maps a game's external player IDs (as strings) to their
+// internal UUIDs. External IDs with no matching player are omitted from the
+// result. Used to resolve a manager's picks (which reference external IDs) to
+// our player records.
+func (s *Store) PlayerIDsByExternalIDs(ctx context.Context, gameID string, externalIDs []string) (map[string]string, error) {
+	out := make(map[string]string, len(externalIDs))
+	if len(externalIDs) == 0 {
+		return out, nil
+	}
+	ids := make([]int, 0, len(externalIDs))
+	for _, s := range externalIDs {
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return nil, fmt.Errorf("PlayerIDsByExternalIDs: invalid external id %q: %w", s, err)
+		}
+		ids = append(ids, n)
+	}
+	rows, err := s.db.Query(ctx,
+		`SELECT external_id, id FROM players WHERE game_id = $1 AND external_id = ANY($2)`,
+		gameID, ids,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("PlayerIDsByExternalIDs: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var extID int
+		var id string
+		if err := rows.Scan(&extID, &id); err != nil {
+			return nil, fmt.Errorf("PlayerIDsByExternalIDs scan: %w", err)
+		}
+		out[strconv.Itoa(extID)] = id
+	}
+	return out, rows.Err()
 }
 
 func filterByGW(rows []MatchOddsRow, gws []int) []MatchOddsRow {

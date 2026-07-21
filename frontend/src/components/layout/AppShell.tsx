@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { to: 'scatter', label: 'Scatter' },
   // Stats is FPL-specific (built around the FPL scoring rules).
   { to: 'stats',   label: 'Stats', games: ['fpl'] },
+  { to: 'planner', label: 'Planner' },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
