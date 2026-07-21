@@ -22,9 +22,13 @@ fpl:
     top_mid: 8
     top_fwd: 5
 
+# WCF sunset after the 2026 World Cup final. The adapter and mapper stay in the
+# codebase (template for the next tournament); we just stop syncing and paying
+# The Odds API quota for a dormant game. The game switcher greys out games whose
+# data is empty. Flip these back to true when the next WCF/Euros tournament arms.
 wcf:
-  sync_enabled: true
-  odds_enabled: true
+  sync_enabled: false
+  odds_enabled: false
   must_have:
     form_window: 5
     form_points_min: 6
@@ -44,3 +48,7 @@ form:
 sync:
   # Number of managers whose picks are fetched in parallel during a sync.
   picks_workers: 10
+  # A game is reported unhealthy by GET /health/sync when its last successful
+  # sync is older than this. The scheduled sync runs daily, so this must exceed
+  # 24h; external monitors (Healthchecks.io / UptimeRobot) page on the 503.
+  freshness_max_age: 26h

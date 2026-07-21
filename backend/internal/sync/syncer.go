@@ -302,6 +302,19 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 		}
 	}
 
+	// 9. Sync status — written last, after cache invalidation, so it records
+	// only fully successful syncs and survives the wipe. GET /health/sync reads
+	// it to page when a game's data goes stale before a deadline.
+	statusPayload := struct {
+		Game        string    `json:"game"`
+		LastSuccess time.Time `json:"last_success"`
+	}{Game: gameID, LastSuccess: time.Now().UTC()}
+	if b, err := json.Marshal(statusPayload); err == nil {
+		if err := s.cache.Set(ctx, store.CacheKey(gameID, "sync_status"), b, 0); err != nil {
+			slog.Warn("cache set sync_status failed", "game", gameID, "err", err)
+		}
+	}
+
 	slog.Info("sync complete", "game", gameID)
 	return nil
 }
