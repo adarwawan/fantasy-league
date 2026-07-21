@@ -103,6 +103,10 @@ func main() {
 
 	deadlineH := handler.NewDeadlineHandler(cache)
 
+	// Entry handler enables team-loading for any source implementing
+	// fantasy.EntryLoader (FPL today; WCF/UCLF automatically once they add it).
+	entryH := handler.NewEntryHandler(startupSources, pg)
+
 	// Monitor freshness for every game that syncs at least once (startup set is
 	// the superset of scheduled). Disabled games (e.g. sunset WCF) are excluded
 	// so their stale status never trips the probe.
@@ -154,6 +158,7 @@ func main() {
 		r.Get("/fixtures", teamsH.Fixtures)
 		r.Get("/fixtures/odds", oddsH.List)
 		r.Get("/deadline", deadlineH.Deadline)
+		r.Get("/entry/{id}", entryH.Load)
 	})
 
 	log.Printf("server listening on :%s", cfg.Port)

@@ -74,6 +74,24 @@ func (s *Source) FetchPicks(ctx context.Context, managerID string, gw int) ([]fa
 	return mapPicks(extID, gw, resp.Picks), nil
 }
 
+// FetchEntrySummary fetches a manager's team value and bank from the FPL entry
+// endpoint. entryID is the external FPL manager ID as a string. Implementing
+// this (plus CurrentGW, already present) makes FPL satisfy fantasy.EntryLoader.
+func (s *Source) FetchEntrySummary(ctx context.Context, entryID string) (fantasy.EntrySummary, error) {
+	extID, err := strconv.Atoi(entryID)
+	if err != nil {
+		return fantasy.EntrySummary{}, fmt.Errorf("fpl FetchEntrySummary: invalid entryID %q: %w", entryID, err)
+	}
+	resp, err := s.client.fetchEntry(ctx, extID)
+	if err != nil {
+		return fantasy.EntrySummary{}, fmt.Errorf("fpl FetchEntrySummary entry=%d: %w", extID, err)
+	}
+	return fantasy.EntrySummary{
+		TeamValue: float64(resp.LastDeadlineValue) / 10,
+		Bank:      float64(resp.LastDeadlineBank) / 10,
+	}, nil
+}
+
 // FetchGWStats returns every player's stat line for a single gameweek.
 func (s *Source) FetchGWStats(ctx context.Context, gw int) ([]fantasy.PlayerGWStat, error) {
 	resp, err := s.client.fetchEventLive(ctx, gw)
