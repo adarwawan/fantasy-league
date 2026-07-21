@@ -37,9 +37,43 @@ function formatCachedAt(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+// Data-freshness thresholds. The sync cadence is well under an hour near
+// deadlines, so anything past an hour is worth flagging and past three hours is
+// a likely stale-sync incident — colour it loudly rather than trusting the number.
+const STALE_AMBER_MS = 60 * 60 * 1000;
+const STALE_RED_MS = 3 * 60 * 60 * 1000;
+
+function freshness(cachedAt: string, now: number): { label: string; className: string } {
+  const ageMs = now - new Date(cachedAt).getTime();
+  const ageMin = Math.floor(ageMs / 60_000);
+
+  let label: string;
+  if (ageMin < 1) label = 'just now';
+  else if (ageMin < 60) label = `${ageMin}m ago`;
+  else label = `${Math.floor(ageMin / 60)}h ${ageMin % 60}m ago`;
+
+  let className = 'text-slate-400';
+  if (ageMs >= STALE_RED_MS) className = 'text-rose-400 font-semibold';
+  else if (ageMs >= STALE_AMBER_MS) className = 'text-amber-400';
+
+  return { label, className };
+}
+
+// useNow re-renders on an interval so the freshness label/colour advances even
+// when no deadline countdown is driving updates.
+function useNow(intervalMs: number): number {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
 export function GWContextBar({ game }: { game: string }) {
   const { gw, deadline, cachedAt, isLoading } = useGWContext(game);
   const countdown = useCountdown(deadline);
+  const now = useNow(30_000);
 
   if (isLoading || gw === null) return null;
 
@@ -59,12 +93,17 @@ export function GWContextBar({ game }: { game: string }) {
         </div>
       )}
 
-      {cachedAt && (
-        <div className="flex items-center gap-1.5 ml-auto">
-          <span className="text-slate-500 uppercase tracking-wide font-medium">Updated</span>
-          <span className="text-slate-400 font-mono">{formatCachedAt(cachedAt)}</span>
-        </div>
-      )}
+      {cachedAt && (() => {
+        const { label, className } = freshness(cachedAt, now);
+        return (
+          <div className="flex items-center gap-1.5 ml-auto">
+            <span className="text-slate-500 uppercase tracking-wide font-medium">Updated</span>
+            <span className={`font-mono ${className}`} title={`Last sync ${formatCachedAt(cachedAt)}`}>
+              {label}
+            </span>
+          </div>
+        );
+      })()}
     </div>
   );
 }

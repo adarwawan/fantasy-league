@@ -15,8 +15,8 @@ import (
 	"fantasy-league/internal/fantasy"
 	"fantasy-league/internal/handler"
 	"fantasy-league/internal/musthave"
-	"fantasy-league/internal/sources/odds"
 	fplsrc "fantasy-league/internal/sources/fpl"
+	"fantasy-league/internal/sources/odds"
 	wcfsrc "fantasy-league/internal/sources/wcf"
 	"fantasy-league/internal/store"
 	syncsvc "fantasy-league/internal/sync"
@@ -103,6 +103,15 @@ func main() {
 
 	deadlineH := handler.NewDeadlineHandler(cache)
 
+	// Monitor freshness for every game that syncs at least once (startup set is
+	// the superset of scheduled). Disabled games (e.g. sunset WCF) are excluded
+	// so their stale status never trips the probe.
+	monitoredGames := make([]string, 0, len(startupSources))
+	for _, src := range startupSources {
+		monitoredGames = append(monitoredGames, src.GameID())
+	}
+	syncHealthH := handler.NewSyncHealthHandler(cache, monitoredGames, cfg.SyncFreshnessMaxAge)
+
 	// Router
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -121,6 +130,7 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
+	r.Get("/health/sync", syncHealthH.Sync)
 
 	r.Route("/api/{game}", func(r chi.Router) {
 		r.Use(validateGame)

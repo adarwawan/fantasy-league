@@ -28,6 +28,10 @@ type Config struct {
 	// parallel during a sync.
 	PicksWorkers int
 
+	// SyncFreshnessMaxAge is how old a game's last successful sync may be
+	// before GET /health/sync reports it unhealthy.
+	SyncFreshnessMaxAge time.Duration
+
 	// MustHave holds per-game must-have thresholds, keyed by game ID.
 	MustHave map[string]MustHaveConfig
 
@@ -63,7 +67,8 @@ type coldConfig struct {
 		GWWindow int `yaml:"gw_window"`
 	} `yaml:"form"`
 	Sync struct {
-		PicksWorkers int `yaml:"picks_workers"`
+		PicksWorkers    int    `yaml:"picks_workers"`
+		FreshnessMaxAge string `yaml:"freshness_max_age"`
 	} `yaml:"sync"`
 }
 
@@ -106,6 +111,7 @@ func loadColdConfig() coldConfig {
 	cc.Odds.CacheTTL = "15m"
 	cc.Form.GWWindow = 3
 	cc.Sync.PicksWorkers = 10
+	cc.Sync.FreshnessMaxAge = "26h"
 	cc.FPL.MustHave = defaultMustHave()
 	cc.WCF.MustHave = defaultMustHave()
 
@@ -136,6 +142,8 @@ func Load() Config {
 		oddsCacheTTL = 15 * time.Minute
 	}
 
+	freshnessMaxAge := envDurationOr("SYNC_FRESHNESS_MAX_AGE", cc.Sync.FreshnessMaxAge, 26*time.Hour)
+
 	return Config{
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		RedisURL:    os.Getenv("REDIS_URL"),
@@ -150,7 +158,8 @@ func Load() Config {
 
 		FormGWWindow: envIntOr("FORM_GW_WINDOW", cc.Form.GWWindow),
 
-		PicksWorkers: envIntOr("PICKS_WORKERS", cc.Sync.PicksWorkers),
+		PicksWorkers:        envIntOr("PICKS_WORKERS", cc.Sync.PicksWorkers),
+		SyncFreshnessMaxAge: freshnessMaxAge,
 
 		MustHave: map[string]MustHaveConfig{
 			"fpl": cc.FPL.MustHave,
@@ -189,6 +198,22 @@ func envIntOr(key string, def int) int {
 		return def
 	}
 	return i
+}
+
+// envDurationOr resolves a duration from an env var, then a config string,
+// falling back to def when neither is set or parseable.
+func envDurationOr(key, cfgVal string, def time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+	if cfgVal != "" {
+		if d, err := time.ParseDuration(cfgVal); err == nil {
+			return d
+		}
+	}
+	return def
 }
 
 func corsOrigins() []string {
