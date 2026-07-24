@@ -13,10 +13,12 @@ const STATUS_DOT: Record<Player['status'], string> = {
 export function PlayerCard({
   player,
   teams,
+  currentGw,
   onClick,
 }: {
   player: Player;
   teams?: Team[];
+  currentGw?: number;
   onClick?: (p: Player) => void;
 }) {
   const diff = player.top_n_ownership - player.global_ownership;
@@ -56,20 +58,18 @@ export function PlayerCard({
 
       {/* Line 3 — fixtures (next 5 GWs; double gameweeks may exceed 5) */}
       <div className="mt-1.5 flex flex-wrap gap-1">
-        {player.fixtures.map((f, i) => {
-          const oppTeam = teams?.find(t => t.short_name === f.opp);
-          return (
-            <FixtureChip
-              key={i}
-              fixture={f}
-              xg={f.xg}
-              csPct={f.cs_pct}
-              focusMode="overall"
-              oppOvrForm={oppTeam?.ovr_form}
-              compact
-            />
-          );
-        })}
+        {player.fixtures.map((f, i) => (
+          <FixtureChip
+            key={i}
+            fixture={f}
+            xg={f.xg}
+            csPct={f.cs_pct}
+            focusMode="overall"
+            oppOvrForm={teams?.find(t => t.short_name === f.opp)?.ovr_form}
+            currentGw={currentGw}
+            compact
+          />
+        ))}
       </div>
     </button>
   );

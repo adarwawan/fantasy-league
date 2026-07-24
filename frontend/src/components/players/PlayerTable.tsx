@@ -61,10 +61,11 @@ interface Props {
   players: Player[];
   topNSize: number;
   teams?: Team[];
+  currentGw?: number;
   onPlayerClick?: (p: Player) => void;
 }
 
-export function PlayerTable({ players, topNSize, teams, onPlayerClick }: Props) {
+export function PlayerTable({ players, topNSize, teams, currentGw, onPlayerClick }: Props) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'global_ownership', desc: true },
   ]);
@@ -111,6 +112,7 @@ export function PlayerTable({ players, topNSize, teams, onPlayerClick }: Props) 
         table={table}
         rows={visibleRows}
         teams={teams}
+        currentGw={currentGw}
         onPlayerClick={onPlayerClick}
         footer={footer}
       />
@@ -120,7 +122,7 @@ export function PlayerTable({ players, topNSize, teams, onPlayerClick }: Props) 
   return (
     <>
       <MobileSortBar sorting={sorting} setSorting={setSorting} />
-      <VirtualCards rows={visibleRows} teams={teams} onPlayerClick={onPlayerClick} footer={footer} />
+      <VirtualCards rows={visibleRows} teams={teams} currentGw={currentGw} onPlayerClick={onPlayerClick} footer={footer} />
     </>
   );
 }
@@ -171,11 +173,12 @@ interface VirtualTableProps {
   table: ReturnType<typeof useReactTable<Player>>;
   rows: Row<Player>[];
   teams?: Team[];
+  currentGw?: number;
   onPlayerClick?: (p: Player) => void;
   footer: ReactNode;
 }
 
-function VirtualTable({ table, rows, teams, onPlayerClick, footer }: VirtualTableProps) {
+function VirtualTable({ table, rows, teams, currentGw, onPlayerClick, footer }: VirtualTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const virtualizer = useWindowVirtualizer({
@@ -225,6 +228,7 @@ function VirtualTable({ table, rows, teams, onPlayerClick, footer }: VirtualTabl
                 data-index={vr.index}
                 row={row}
                 teams={teams}
+                currentGw={currentGw}
                 onPlayerClick={onPlayerClick}
               />
             );
@@ -240,11 +244,13 @@ function VirtualTable({ table, rows, teams, onPlayerClick, footer }: VirtualTabl
 function VirtualCards({
   rows,
   teams,
+  currentGw,
   onPlayerClick,
   footer,
 }: {
   rows: Row<Player>[];
   teams?: Team[];
+  currentGw?: number;
   onPlayerClick?: (p: Player) => void;
   footer: ReactNode;
 }) {
@@ -274,7 +280,7 @@ function VirtualCards({
               className="absolute left-0 w-full pb-2"
               style={{ transform: `translateY(${vr.start - virtualizer.options.scrollMargin}px)` }}
             >
-              <PlayerCard player={row.original} teams={teams} onClick={onPlayerClick} />
+              <PlayerCard player={row.original} teams={teams} currentGw={currentGw} onClick={onPlayerClick} />
             </div>
           );
         })}

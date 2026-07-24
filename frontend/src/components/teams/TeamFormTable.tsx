@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -36,6 +36,7 @@ interface Props {
   players:    Player[];
   focusMode:  FocusMode;
   window:     number;
+  currentGw?: number;
   onFocusChange:  (mode: FocusMode) => void;
   onWindowChange: (w: number) => void;
 }
@@ -93,7 +94,13 @@ function defaultSort(focusMode: FocusMode): SortingState {
   return [{ id: 'ovr_form', desc: true }];
 }
 
-export function TeamFormTable({ teams, players, focusMode, window, onFocusChange, onWindowChange }: Props) {
+export function TeamFormTable({ teams, players, focusMode, window, currentGw, onFocusChange, onWindowChange }: Props) {
+  // Opponent form lookup by short name, so no-odds chips can colour by the
+  // opponent's ovr_form (after GW 5) — matching the Players tab.
+  const formByShortName = useMemo(
+    () => new Map(teams.map(t => [t.short_name, t.ovr_form])),
+    [teams],
+  );
   const [sorting, setSorting]   = useState<SortingState>(defaultSort(focusMode));
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const isDesktop = useMediaQuery('(min-width: 768px)');
@@ -166,6 +173,8 @@ export function TeamFormTable({ teams, players, focusMode, window, onFocusChange
           rows={table.getRowModel().rows.map(r => r.original)}
           players={players}
           focusMode={focusMode}
+          formByShortName={formByShortName}
+          currentGw={currentGw}
           expanded={expanded}
           onToggle={toggle}
           sorting={sorting}
@@ -237,6 +246,8 @@ export function TeamFormTable({ teams, players, focusMode, window, onFocusChange
                                   xg={tf.xg}
                                   csPct={tf.cs_pct}
                                   focusMode={focusMode}
+                                  oppOvrForm={formByShortName.get(tf.opp)}
+                                  currentGw={currentGw}
                                 />
                               ))}
                             </div>
@@ -363,6 +374,8 @@ function MobileTeamCards({
   rows,
   players,
   focusMode,
+  formByShortName,
+  currentGw,
   expanded,
   onToggle,
   sorting,
@@ -371,6 +384,8 @@ function MobileTeamCards({
   rows: Team[];
   players: Player[];
   focusMode: FocusMode;
+  formByShortName: Map<string, number>;
+  currentGw?: number;
   expanded: Set<string>;
   onToggle: (id: string) => void;
   sorting: SortingState;
@@ -427,6 +442,8 @@ function MobileTeamCards({
                       xg={tf.xg}
                       csPct={tf.cs_pct}
                       focusMode={focusMode}
+                      oppOvrForm={formByShortName.get(tf.opp)}
+                      currentGw={currentGw}
                       compact
                     />
                   ))}

@@ -32,48 +32,46 @@ function chipTier(
   return 'hard';
 }
 
+// Odds-based difficulty tiers reuse the FDR palette so odds chips and plain FDR
+// chips read as one scheme: easy = FDR 2 green, medium = FDR 3 grey, hard = FDR 5 maroon.
 const tierColours: Record<'easy' | 'medium' | 'hard', { bg: string; text: string }> = {
-  easy:   { bg: 'bg-green-200',  text: 'text-green-900'  },
-  medium: { bg: 'bg-amber-100',  text: 'text-amber-900'  },
-  hard:   { bg: 'bg-red-200',    text: 'text-red-900'    },
+  easy:   fdrColours[2],
+  medium: fdrColours[3],
+  hard:   fdrColours[5],
 };
 
-// Dark-card friendly styling for the compact chip, keyed by the Tailwind colour
-// family of the resolved (light-fill) chip background. Tinted bg + bright text
-// so difficulty is clearly differentiated without a saturated block.
-const compactTone: Record<string, { bg: string; text: string }> = {
-  green:  { bg: 'bg-emerald-500/20', text: 'text-emerald-300' },
-  teal:   { bg: 'bg-teal-500/20',    text: 'text-teal-300'    },
-  amber:  { bg: 'bg-amber-500/20',   text: 'text-amber-300'   },
-  orange: { bg: 'bg-orange-500/20',  text: 'text-orange-300'  },
-  red:    { bg: 'bg-red-500/20',     text: 'text-red-300'     },
-};
-
-function compactStyle(bgClass: string): { bg: string; text: string } {
-  const family = bgClass.replace('bg-', '').split('-')[0];
-  return compactTone[family] ?? compactTone.amber;
-}
+// Opponent form is only trustworthy once enough of the season has been played;
+// before this gameweek there isn't enough data, so we colour by static FDR.
+const FORM_FALLBACK_FROM_GW = 5;
 
 interface FixtureChipProps {
   fixture:      Fixture;
   xg?:          number | null;
   csPct?:       number | null;
   focusMode?:   FocusMode;
+  /** Opponent's overall form, used as the first no-odds fallback (after GW 5). */
   oppOvrForm?:  number;
+  /** Current season gameweek — gates the form fallback (needs > 5). */
+  currentGw?:   number;
   /** Compact single-line variant: difficulty shown as a left accent, no xG/CS. */
   compact?:     boolean;
 }
 
-export function FixtureChip({ fixture, xg, csPct, focusMode = 'overall', oppOvrForm, compact }: FixtureChipProps) {
+export function FixtureChip({ fixture, xg, csPct, focusMode = 'overall', oppOvrForm, currentGw, compact }: FixtureChipProps) {
   const resolvedXG    = xg   ?? null;
   const resolvedCSPct = csPct ?? null;
 
-  // When odds are available use the chipTier logic; otherwise fall back to
-  // opponent form (if provided) or raw FDR.
+  // Colour resolution, in priority order:
+  //   1. odds present            → chipTier (xG / CS based)
+  //   2. opponent form, after    → ovrFormColour  (only once currentGw > 5)
+  //      GW 5
+  //   3. otherwise               → static FDR
+  // Both the Players and Teams tabs feed the same inputs, so a given fixture
+  // reads identically on both surfaces.
   let colours: { bg: string; text: string };
   if (resolvedXG !== null && resolvedCSPct !== null) {
     colours = tierColours[chipTier(resolvedXG, resolvedCSPct, fixture.difficulty, focusMode)];
-  } else if (oppOvrForm !== undefined) {
+  } else if (oppOvrForm !== undefined && currentGw !== undefined && currentGw > FORM_FALLBACK_FROM_GW) {
     colours = ovrFormColour(oppOvrForm);
   } else {
     colours = fdrColours[fixture.difficulty] ?? fdrColours[3];
@@ -82,14 +80,13 @@ export function FixtureChip({ fixture, xg, csPct, focusMode = 'overall', oppOvrF
   const hasOdds = resolvedXG !== null && resolvedCSPct !== null;
 
   if (compact) {
-    const tone = compactStyle(colours.bg);
     return (
       <span
-        className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] leading-tight ${tone.bg}`}
+        className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] leading-tight ${colours.bg} ${colours.text}`}
         title={`GW${fixture.gw} · ${fixture.opp} ${fixture.ha === 'H' ? 'Home' : 'Away'}${hasOdds ? ` · xG ${resolvedXG!.toFixed(2)} · CS ${resolvedCSPct!.toFixed(0)}%` : ''}`}
       >
-        <span className={`font-bold ${tone.text}`}>{fixture.opp} {fixture.ha}</span>
-        <span className="ml-1 text-slate-400">GW{fixture.gw}</span>
+        <span className="font-bold">{fixture.opp} {fixture.ha}</span>
+        <span className="ml-1 opacity-70">GW{fixture.gw}</span>
       </span>
     );
   }

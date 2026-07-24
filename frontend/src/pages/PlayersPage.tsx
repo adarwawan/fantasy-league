@@ -144,10 +144,11 @@ export function PlayersPage() {
           players={filteredPlayers}
           topNSize={data.meta.top_n_size}
           teams={teamsData?.teams}
+          currentGw={data.meta.gw}
           onPlayerClick={handlePlayerClick}
         />
       </div>
-      <PlayerDrawer player={selectedPlayer} teams={teamsData?.teams} onClose={handleDrawerClose} />
+      <PlayerDrawer player={selectedPlayer} teams={teamsData?.teams} currentGw={data.meta.gw} onClose={handleDrawerClose} />
     </>
   );
 }

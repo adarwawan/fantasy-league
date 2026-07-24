@@ -64,6 +64,7 @@ export function TeamsPage() {
         players={playersData?.players ?? []}
         focusMode={focusMode}
         window={window}
+        currentGw={playersData?.meta.gw}
         onFocusChange={setFocusMode}
         onWindowChange={setWindow}
       />

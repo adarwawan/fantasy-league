@@ -37,12 +37,13 @@ function OwnershipBar({ value, position, max = 80 }: { value: number; position: 
 interface PlayerRowProps {
   row: Row<Player>;
   teams?: Team[];
+  currentGw?: number;
   onPlayerClick?: (p: Player) => void;
   'data-index'?: number;
 }
 
 export const PlayerRow = forwardRef<HTMLTableRowElement, PlayerRowProps>(function PlayerRow(
-  { row, teams, onPlayerClick, 'data-index': dataIndex },
+  { row, teams, currentGw, onPlayerClick, 'data-index': dataIndex },
   ref,
 ) {
   const player = row.original;
@@ -134,19 +135,17 @@ export const PlayerRow = forwardRef<HTMLTableRowElement, PlayerRowProps>(functio
           gameweek may yield more than 5 fixtures) */}
       <td className="px-3 py-2">
         <div className="flex gap-1 flex-wrap">
-          {player.fixtures.map((f, i) => {
-              const oppTeam = teams?.find(t => t.short_name === f.opp);
-              return (
-                <FixtureChip
-                  key={i}
-                  fixture={f}
-                  xg={f.xg}
-                  csPct={f.cs_pct}
-                  focusMode="overall"
-                  oppOvrForm={oppTeam?.ovr_form}
-                />
-              );
-            })}
+          {player.fixtures.map((f, i) => (
+              <FixtureChip
+                key={i}
+                fixture={f}
+                xg={f.xg}
+                csPct={f.cs_pct}
+                focusMode="overall"
+                oppOvrForm={teams?.find(t => t.short_name === f.opp)?.ovr_form}
+                currentGw={currentGw}
+              />
+            ))}
         </div>
       </td>
     </tr>
