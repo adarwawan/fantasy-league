@@ -11,7 +11,7 @@ fpl:
   sync_enabled: true
   sync_once: false
   league_id: 314
-  odds_enabled: false
+  odds_enabled: true
   must_have:
     form_window: 5
     form_points_min: 6
