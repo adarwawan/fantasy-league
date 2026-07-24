@@ -335,7 +335,7 @@ export function PlannerPage() {
                           >
                             {/* Full decision info — status, form, ownership, EO,
                                 differential, set-piece duties, fixtures. */}
-                            <PlayerCard player={player} teams={teamsData?.teams} onClick={setSelectedPlayer} />
+                            <PlayerCard player={player} teams={teamsData?.teams} currentGw={data?.meta.gw} onClick={setSelectedPlayer} />
                             {/* Sell-price editor + remove */}
                             <div className="flex items-center gap-2 border-t border-slate-700/50 px-3 py-1.5">
                               <span className="text-[10px] uppercase tracking-wide text-slate-500">Sell price</span>
@@ -442,7 +442,7 @@ export function PlannerPage() {
                 return (
                   <div key={player.id} className="flex items-center gap-2">
                     <div className="flex-1 min-w-0">
-                      <PlayerCard player={player} teams={teamsData?.teams} onClick={setSelectedPlayer} />
+                      <PlayerCard player={player} teams={teamsData?.teams} currentGw={data?.meta.gw} onClick={setSelectedPlayer} />
                     </div>
                     <button
                       onClick={() => addPlayer(player)}
@@ -461,7 +461,7 @@ export function PlannerPage() {
         </section>
       </div>
 
-      <PlayerDrawer player={selectedPlayer} teams={teamsData?.teams} onClose={() => setSelectedPlayer(null)} />
+      <PlayerDrawer player={selectedPlayer} teams={teamsData?.teams} currentGw={data?.meta.gw} onClose={() => setSelectedPlayer(null)} />
     </>
   );
 }
