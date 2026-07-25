@@ -9,6 +9,8 @@ const NAV_LINKS = [
   // Stats is FPL-specific (built around the FPL scoring rules).
   { to: 'stats',   label: 'Stats', games: ['fpl'] },
   { to: 'planner', label: 'Planner' },
+  // Set pieces is PL-wide and FPL-relevant (Understat-sourced).
+  { to: 'set-pieces', label: 'Set Pieces', games: ['fpl'] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

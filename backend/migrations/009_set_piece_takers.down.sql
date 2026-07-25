@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS sp_board;
+DROP TABLE IF EXISTS sp_events;

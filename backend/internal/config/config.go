@@ -42,6 +42,13 @@ type Config struct {
 
 	SyncEndpointSecret string
 	CORSAllowedOrigins []string
+
+	// Set-piece detector (isolated Understat module).
+	SPEnabled         bool
+	SPSeason          string
+	SPWindowMatches   int
+	SPRecencyHalfLife time.Duration
+	SPSyncCron        string
 }
 
 type coldConfig struct {
@@ -70,6 +77,13 @@ type coldConfig struct {
 		PicksWorkers    int    `yaml:"picks_workers"`
 		FreshnessMaxAge string `yaml:"freshness_max_age"`
 	} `yaml:"sync"`
+	SetPiece struct {
+		Enabled         bool   `yaml:"enabled"`
+		Season          string `yaml:"season"`
+		WindowMatches   int    `yaml:"window_matches"`
+		RecencyHalfLife string `yaml:"recency_halflife"`
+		SyncCron        string `yaml:"sync_cron"`
+	} `yaml:"setpiece"`
 }
 
 // MustHaveConfig holds the thresholds for must-have player detection.
@@ -112,6 +126,11 @@ func loadColdConfig() coldConfig {
 	cc.Form.GWWindow = 3
 	cc.Sync.PicksWorkers = 10
 	cc.Sync.FreshnessMaxAge = "26h"
+	cc.SetPiece.Enabled = false
+	cc.SetPiece.Season = "2025"
+	cc.SetPiece.WindowMatches = 6
+	cc.SetPiece.RecencyHalfLife = "1080h" // ~45 days
+	cc.SetPiece.SyncCron = "0 6 * * *"
 	cc.FPL.MustHave = defaultMustHave()
 	cc.WCF.MustHave = defaultMustHave()
 
@@ -173,7 +192,20 @@ func Load() Config {
 
 		SyncEndpointSecret: os.Getenv("SYNC_ENDPOINT_SECRET"),
 		CORSAllowedOrigins: corsOrigins(),
+
+		SPEnabled:         envBoolOr("SP_ENABLED", cc.SetPiece.Enabled),
+		SPSeason:          envStringOr("SP_SEASON", cc.SetPiece.Season),
+		SPWindowMatches:   envIntOr("SP_WINDOW_MATCHES", cc.SetPiece.WindowMatches),
+		SPRecencyHalfLife: envDurationOr("SP_RECENCY_HALFLIFE", cc.SetPiece.RecencyHalfLife, 1080*time.Hour),
+		SPSyncCron:        envStringOr("SP_SYNC_CRON", cc.SetPiece.SyncCron),
 	}
+}
+
+func envStringOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
 
 func envBoolOr(key string, def bool) bool {

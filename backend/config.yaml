@@ -52,3 +52,15 @@ sync:
   # sync is older than this. The scheduled sync runs daily, so this must exceed
   # 24h; external monitors (Healthchecks.io / UptimeRobot) page on the 503.
   freshness_max_age: 26h
+
+# Set-piece detector — isolated Understat module (docs/set-piece-detector.md).
+# Observed penalty/DFK takers and set-piece target men, mined from shot data.
+# Fully self-contained: own tables (sp_*), sync, and /api/setpiece routes;
+# never touches the players/fixtures pipeline. Disabled by default — flip
+# `enabled` to true (and apply migration 009) to arm it.
+setpiece:
+  enabled: true
+  season: "2025"        # Understat season = starting year (2025 = 2025/26)
+  window_matches: 6     # rolling window of a team's most recent matches
+  recency_halflife: 1080h  # ~45d exponential decay for recent-match weighting
+  sync_cron: "0 6 * * *"   # daily 06:00; picks up all finished matches since last run

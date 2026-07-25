@@ -15,6 +15,7 @@ import (
 	"fantasy-league/internal/fantasy"
 	"fantasy-league/internal/handler"
 	"fantasy-league/internal/musthave"
+	"fantasy-league/internal/setpiece"
 	fplsrc "fantasy-league/internal/sources/fpl"
 	"fantasy-league/internal/sources/odds"
 	wcfsrc "fantasy-league/internal/sources/wcf"
@@ -90,6 +91,39 @@ func main() {
 	if err != nil {
 		log.Fatalf("schedule job: %v", err)
 	}
+
+	// Set-piece detector — isolated Understat module with its own store, sync,
+	// handler and schedule. Never wired through fantasy.Source.
+	var spHandler *setpiece.Handler
+	if cfg.SPEnabled {
+		spClient := setpiece.NewClient(cfg.OddsCacheTTL, cache)
+		spStore := setpiece.NewStore(pg.Pool())
+		spService := setpiece.NewService(setpiece.Config{
+			Enabled:         cfg.SPEnabled,
+			Season:          cfg.SPSeason,
+			WindowMatches:   cfg.SPWindowMatches,
+			RecencyHalfLife: cfg.SPRecencyHalfLife,
+		}, spClient, spStore)
+		spHandler = setpiece.NewHandler(spStore, cache, cfg.SPWindowMatches)
+
+		if _, err := scheduler.NewJob(
+			gocron.CronJob(cfg.SPSyncCron, false),
+			gocron.NewTask(func() {
+				if err := spService.Sync(context.Background()); err != nil {
+					slog.Error("setpiece sync failed", "err", err)
+				}
+			}),
+		); err != nil {
+			log.Fatalf("schedule setpiece job: %v", err)
+		}
+
+		go func() {
+			if err := spService.Sync(context.Background()); err != nil {
+				slog.Error("setpiece startup sync failed", "err", err)
+			}
+		}()
+	}
+
 	scheduler.Start()
 
 	// Sync on startup (all sources, including once-only)
@@ -135,6 +169,14 @@ func main() {
 		w.Write([]byte("ok"))
 	})
 	r.Get("/health/sync", syncHealthH.Sync)
+
+	// Set-piece detector routes — isolated namespace, not under /api/{game}.
+	if spHandler != nil {
+		r.Route("/api/setpiece", func(r chi.Router) {
+			r.Get("/teams", spHandler.Teams)
+			r.Get("/teams/{understat_team}", spHandler.Team)
+		})
+	}
 
 	r.Route("/api/{game}", func(r chi.Router) {
 		r.Use(validateGame)

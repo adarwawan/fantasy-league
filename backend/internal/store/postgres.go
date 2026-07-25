@@ -29,6 +29,13 @@ func (s *Store) Close() {
 	s.db.Close()
 }
 
+// Pool exposes the underlying connection pool for isolated sibling packages
+// (e.g. internal/setpiece) that own their own tables but share the same
+// database. It intentionally does not expose any query helpers.
+func (s *Store) Pool() *pgxpool.Pool {
+	return s.db
+}
+
 func (s *Store) UpsertTeams(ctx context.Context, teams []fantasy.Team) error {
 	for _, t := range teams {
 		_, err := s.db.Exec(ctx, `
