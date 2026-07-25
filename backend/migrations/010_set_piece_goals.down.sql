@@ -1,0 +1,2 @@
+ALTER TABLE sp_board  DROP COLUMN IF EXISTS goals;
+ALTER TABLE sp_events DROP COLUMN IF EXISTS is_goal;
