@@ -109,6 +109,7 @@ func mapGWStats(gw int, elements []fplLiveElement) []fantasy.PlayerGWStat {
 			PlayerExternalID: e.ID,
 			GW:               gw,
 			Minutes:          e.Stats.Minutes,
+			Starts:           e.Stats.Starts,
 			Points:           e.Stats.TotalPoints,
 			Goals:            e.Stats.GoalsScored,
 			Assists:          e.Stats.Assists,

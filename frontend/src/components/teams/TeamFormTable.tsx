@@ -12,6 +12,7 @@ import type { Player } from '../../types/player';
 import { PositionBadge } from '../common/PositionBadge';
 import { FixtureChip, type FocusMode } from '../players/FixtureChip';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { minutesSecurity } from '../../utils/minutes';
 
 const ch = createColumnHelper<Team>();
 
@@ -298,11 +299,14 @@ export function TeamFormTable({ teams, players, focusMode, window, currentGw, on
                                 <th className="text-left pb-1 pr-4">Pos</th>
                                 <th className="text-right pb-1 pr-4">Price</th>
                                 <th className="text-right pb-1 pr-4">Form</th>
+                                <th className="text-left pb-1 pr-4">Minutes</th>
                                 <th className="text-right pb-1">Global %</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {teamPlayers.map(p => (
+                              {teamPlayers.map(p => {
+                                const ms = minutesSecurity(p);
+                                return (
                                 <tr key={p.id} className="text-slate-300">
                                   <td className="pr-4 py-0.5">{p.name}</td>
                                   <td className="pr-4 py-0.5">
@@ -310,9 +314,15 @@ export function TeamFormTable({ teams, players, focusMode, window, currentGw, on
                                   </td>
                                   <td className="pr-4 py-0.5 text-right tabular-nums">£{p.price.toFixed(1)}m</td>
                                   <td className="pr-4 py-0.5 text-right tabular-nums">{p.form.toFixed(1)}</td>
+                                  <td className="pr-4 py-0.5">
+                                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${ms.bg} ${ms.text}`} title={ms.title}>
+                                      {ms.label}
+                                    </span>
+                                  </td>
                                   <td className="py-0.5 text-right tabular-nums">{p.global_ownership.toFixed(1)}%</td>
                                 </tr>
-                              ))}
+                                );
+                              })}
                             </tbody>
                           </table>
                         )}

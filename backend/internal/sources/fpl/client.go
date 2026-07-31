@@ -117,6 +117,7 @@ type fplLiveElement struct {
 	ID    int `json:"id"`
 	Stats struct {
 		Minutes     int `json:"minutes"`
+		Starts      int `json:"starts"`
 		TotalPoints int `json:"total_points"`
 		GoalsScored int `json:"goals_scored"`
 		Assists     int `json:"assists"`

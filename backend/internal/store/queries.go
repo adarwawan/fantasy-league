@@ -315,6 +315,79 @@ func (s *Store) QueryRecentGWPointsByGW(ctx context.Context, gameID string, wind
 	return out, rows.Err()
 }
 
+// GWMinutes is a player's playing time for a single finished gameweek.
+// Fixtures is how many fixtures the player's club played that gameweek: 0 for a
+// blank gameweek, 2 for a double. Starts is how many of those fixtures the
+// player started. Together they let callers derive a fixture-level start rate
+// that treats doubles and blanks correctly.
+type GWMinutes struct {
+	GW       int `json:"gw"`
+	Minutes  int `json:"minutes"`
+	Starts   int `json:"starts"`
+	Fixtures int `json:"fixtures"`
+}
+
+// QueryRecentGWMinutesByGW returns each player's minutes and starts for the last
+// `window` finished gameweeks, ordered oldest → newest, alongside the number of
+// fixtures the player's club played each gameweek (from the fixtures table, so
+// blanks and doubles are counted correctly).
+//
+// Starts falls back to a minutes ≥ 60 proxy for rows written before the starts
+// column existed; once the starts column is populated it takes precedence. This
+// keeps historical gameweeks from all reading as zero starts after the migration.
+func (s *Store) QueryRecentGWMinutesByGW(ctx context.Context, gameID string, window int) (map[string][]GWMinutes, error) {
+	rows, err := s.db.Query(ctx, `
+		WITH recent AS (
+			SELECT DISTINCT gw FROM fixtures
+			WHERE game_id = $1 AND finished
+			ORDER BY gw DESC
+			LIMIT $2
+		),
+		club_fixtures AS (
+			SELECT f.team_id, f.gw, COUNT(*) AS fixtures
+			FROM (
+				SELECT home_team_id AS team_id, gw FROM fixtures
+				WHERE game_id = $1 AND finished
+				UNION ALL
+				SELECT away_team_id AS team_id, gw FROM fixtures
+				WHERE game_id = $1 AND finished
+			) f
+			JOIN recent r ON r.gw = f.gw
+			GROUP BY f.team_id, f.gw
+		)
+		SELECT
+			s.player_id, s.gw,
+			COALESCE(s.minutes, 0),
+			CASE
+				WHEN COALESCE(s.starts, 0) > 0 THEN s.starts
+				WHEN s.minutes >= 60 THEN 1
+				ELSE 0
+			END AS starts,
+			COALESCE(cf.fixtures, 0)
+		FROM player_gw_stats s
+		JOIN recent r ON r.gw = s.gw
+		JOIN players p ON p.id = s.player_id
+		LEFT JOIN club_fixtures cf ON cf.team_id = p.team_id AND cf.gw = s.gw
+		WHERE s.game_id = $1
+		ORDER BY s.player_id, s.gw
+	`, gameID, window)
+	if err != nil {
+		return nil, fmt.Errorf("query recent gw minutes by gw: %w", err)
+	}
+	defer rows.Close()
+
+	out := make(map[string][]GWMinutes)
+	for rows.Next() {
+		var playerID string
+		var gm GWMinutes
+		if err := rows.Scan(&playerID, &gm.GW, &gm.Minutes, &gm.Starts, &gm.Fixtures); err != nil {
+			return nil, fmt.Errorf("scan recent gw minutes by gw: %w", err)
+		}
+		out[playerID] = append(out[playerID], gm)
+	}
+	return out, rows.Err()
+}
+
 // PlayerStatGW is one player's raw stat line for a single finished gameweek,
 // with identity fields joined for presentation. The Stats service aggregates
 // these over the window and derives per-position leaders; keeping the store
