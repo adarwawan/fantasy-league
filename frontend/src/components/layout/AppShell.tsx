@@ -2,15 +2,17 @@ import { Link, useParams, useLocation } from 'react-router-dom';
 import { GameSwitcher } from './GameSwitcher';
 import { GWContextBar } from './GWContextBar';
 
+// Ordered by workflow: research (Players/Teams) → specialist read-outs
+// (Set Pieces/Stats) → act on it (Planner). The scatter plot now lives inside
+// Players as its "Plot" view, so it is no longer a top-level item.
 const NAV_LINKS = [
   { to: 'players', label: 'Players' },
   { to: 'teams',   label: 'Teams'   },
-  { to: 'scatter', label: 'Scatter' },
+  // Set pieces is PL-wide and FPL-relevant (Understat-sourced).
+  { to: 'set-pieces', label: 'Set Pieces', games: ['fpl'] },
   // Stats is FPL-specific (built around the FPL scoring rules).
   { to: 'stats',   label: 'Stats', games: ['fpl'] },
   { to: 'planner', label: 'Planner' },
-  // Set pieces is PL-wide and FPL-relevant (Understat-sourced).
-  { to: 'set-pieces', label: 'Set Pieces', games: ['fpl'] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

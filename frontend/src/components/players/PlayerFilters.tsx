@@ -1,8 +1,12 @@
 import { useEffect, useState, type RefObject } from 'react';
 import type { PlayerQueryParams } from '../../api/players';
 
-const PRICE_MIN = 4.0;
-const PRICE_MAX = 15.0;
+// Fallback bounds used before player data is available. The live floor/cap are
+// derived from the cheapest/most expensive loaded player (see PlayersPage) and
+// passed in via `priceMin`/`priceMax`, so in-season price moves are tracked
+// automatically.
+const PRICE_MIN_FALLBACK = 4.0;
+const PRICE_MAX_FALLBACK = 15.5;
 
 type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
 const POSITIONS: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
@@ -26,9 +30,14 @@ interface Props {
   search:       string;
   onSearch:     (v: string) => void;
   searchRef?:   RefObject<HTMLInputElement>;
+  /** Live price floor/ceiling derived from the data; fall back when omitted. */
+  priceMin?:    number;
+  priceMax?:    number;
 }
 
-export function PlayerFilters({ game, params, onChange, search, onSearch, searchRef }: Props) {
+export function PlayerFilters({ game, params, onChange, search, onSearch, searchRef, priceMin, priceMax }: Props) {
+  const PRICE_MIN = priceMin ?? PRICE_MIN_FALLBACK;
+  const PRICE_MAX = priceMax ?? PRICE_MAX_FALLBACK;
   const topNOptions = TOP_N_OPTIONS[game] ?? TOP_N_OPTIONS['fpl'];
   const topN     = params.top_n     ?? topNOptions[topNOptions.length - 1];
   const minPrice = params.min_price ?? PRICE_MIN;

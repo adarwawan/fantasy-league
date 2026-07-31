@@ -7,8 +7,34 @@ import type { Player } from '../types/player';
 import { PlayerFilters } from '../components/players/PlayerFilters';
 import { PlayerTable } from '../components/players/PlayerTable';
 import { PlayerDrawer } from '../components/players/PlayerDrawer';
+import { ScatterView } from '../components/scatter/ScatterView';
 import { SkeletonRow } from '../components/common/SkeletonRow';
 import { ErrorState } from '../components/common/ErrorState';
+import { priceCeiling, priceFloor } from '../utils/price';
+
+type PlayerView = 'table' | 'plot';
+
+function ViewToggle({ view, onChange }: { view: PlayerView; onChange: (v: PlayerView) => void }) {
+  const opts: { id: PlayerView; label: string }[] = [
+    { id: 'table', label: 'Table' },
+    { id: 'plot',  label: 'Plot'  },
+  ];
+  return (
+    <div className="flex rounded-md border border-slate-600 overflow-hidden text-sm">
+      {opts.map(({ id, label }) => (
+        <button
+          key={id}
+          onClick={() => onChange(id)}
+          className={`px-3 py-1 ${id !== 'table' ? 'border-l border-slate-600' : ''} ${
+            view === id ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const PLAYER_SKELETON_COLS = [
   'w-32', 'w-12', 'w-10', 'w-14', 'w-10', 'w-14', 'w-14', 'w-14', 'w-40',
@@ -29,12 +55,12 @@ function paramsFromSearch(sp: URLSearchParams): PlayerQueryParams {
   return p;
 }
 
-function paramsToSearch(p: PlayerQueryParams): Record<string, string> {
+function paramsToSearch(p: PlayerQueryParams, priceMin: number, priceMax: number): Record<string, string> {
   const out: Record<string, string> = {};
   if (p.sort)      out.sort      = p.sort;
   if (p.pos)       out.pos       = p.pos;
-  if (p.min_price && p.min_price > 4)   out.min_price = String(p.min_price);
-  if (p.max_price && p.max_price < 15)  out.max_price = String(p.max_price);
+  if (p.min_price && p.min_price > priceMin)   out.min_price = String(p.min_price);
+  if (p.max_price && p.max_price < priceMax)   out.max_price = String(p.max_price);
   if (p.top_n)     out.top_n     = String(p.top_n);
   return out;
 }
@@ -58,9 +84,27 @@ export function PlayersPage() {
   const debouncedSearch = useDebounced(searchInput);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const view: PlayerView = searchParams.get('view') === 'plot' ? 'plot' : 'table';
+
+  const setView = useCallback((next: PlayerView) => {
+    const sp = new URLSearchParams(searchParams);
+    if (next === 'plot') sp.set('view', 'plot');
+    else sp.delete('view');
+    setSearchParams(sp, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   useEffect(() => {
     document.title = `${game.toUpperCase()} — Players`;
   }, [game]);
+
+  const header = (
+    <div className="flex items-center justify-between gap-3 mb-4">
+      <h1 className="text-xl font-semibold text-slate-100">
+        {game.toUpperCase()} — Players
+      </h1>
+      <ViewToggle view={view} onChange={setView} />
+    </div>
+  );
 
   // `/` global shortcut focuses search
   useEffect(() => {
@@ -78,11 +122,17 @@ export function PlayersPage() {
   const { data, isLoading, isError, refetch } = usePlayers(game, params);
   const { data: teamsData } = useTeams(game);
 
+  // Price bounds track the cheapest/most expensive loaded player (rounded to
+  // £0.5), so the filter reaches players whose price has drifted during the
+  // season, below £4.0 or above £15.5.
+  const priceMin = useMemo(() => priceFloor(data?.players), [data]);
+  const priceMax = useMemo(() => priceCeiling(data?.players), [data]);
+
   const filteredPlayers = useMemo(() => {
     if (!data) return [];
     let players = data.players;
-    if (params.min_price && params.min_price > 4) {
-      players = players.filter(p => p.price >= (params.min_price ?? 4));
+    if (params.min_price && params.min_price > priceMin) {
+      players = players.filter(p => p.price >= (params.min_price ?? priceMin));
     }
     if (!debouncedSearch.trim()) return players;
     const q = debouncedSearch.toLowerCase();
@@ -91,19 +141,30 @@ export function PlayersPage() {
       p.team.short_name.toLowerCase().includes(q) ||
       p.team.name.toLowerCase().includes(q)
     );
-  }, [data, debouncedSearch, params.min_price]);
+  }, [data, debouncedSearch, params.min_price, priceMin]);
 
   function handleChange(next: PlayerQueryParams) {
-    setSearchParams(paramsToSearch(next), { replace: true });
+    setSearchParams(paramsToSearch(next, priceMin, priceMax), { replace: true });
   }
 
   const handlePlayerClick = useCallback((p: Player) => setSelectedPlayer(p), []);
   const handleDrawerClose = useCallback(() => setSelectedPlayer(null), []);
 
+  // Plot view uses its own data source (useScatter) and owns its loading/
+  // error/drawer states, so it short-circuits the table-data gating below.
+  if (view === 'plot') {
+    return (
+      <div>
+        {header}
+        <ScatterView />
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div>
-        <h1 className="text-xl font-semibold text-slate-100 mb-4">{game.toUpperCase()} — Players</h1>
+        {header}
         <div className="overflow-x-auto rounded-lg border border-slate-700/50">
           <table className="w-full text-sm" aria-label="Loading players">
             <tbody>
@@ -129,9 +190,7 @@ export function PlayersPage() {
   return (
     <>
       <div>
-        <h1 className="text-xl font-semibold text-slate-100 mb-4">
-          {game.toUpperCase()} — Players
-        </h1>
+        {header}
         <PlayerFilters
           game={game}
           params={params}
@@ -139,6 +198,8 @@ export function PlayersPage() {
           search={searchInput}
           onSearch={setSearchInput}
           searchRef={searchRef}
+          priceMin={priceMin}
+          priceMax={priceMax}
         />
         <PlayerTable
           players={filteredPlayers}
