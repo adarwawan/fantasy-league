@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import type { GWPoints, Player } from '../../types/player';
+import type { GWMinutes, GWPoints, Player } from '../../types/player';
 import type { Team } from '../../types/team';
+import { minutesSecurity } from '../../utils/minutes';
 import { PositionBadge } from '../common/PositionBadge';
 import { DUTY_META, SetPieceBadge, setPieceDuties } from '../common/SetPieceBadge';
 import { FixtureChip } from './FixtureChip';
@@ -70,6 +71,43 @@ function RecentPoints({ points }: { points: GWPoints[] }) {
   );
 }
 
+// MinutesSparkline renders one bar per recent gameweek scaled to the maximum
+// minutes available that week (90 × fixtures), so a double gameweek's 160' reads
+// as "nearly all of it" rather than overflowing a single-90 scale. Blank
+// gameweeks (the club didn't play) show a greyed slot, and doubles carry a ×2
+// tag. Bars a player started are tinted; cameo/benched weeks stay muted.
+function MinutesSparkline({ minutes }: { minutes: GWMinutes[] }) {
+  return (
+    <div className="flex items-end justify-between gap-2">
+      {minutes.map(m => {
+        const blank = m.fixtures === 0;
+        const cap = Math.max(m.fixtures, 1) * 90;
+        const pct = blank ? 0 : Math.max((m.minutes / cap) * 100, 4);
+        const color = blank
+          ? 'bg-slate-700'
+          : m.starts > 0
+            ? 'bg-emerald-500'
+            : m.minutes > 0
+              ? 'bg-sky-500'
+              : 'bg-slate-600';
+        return (
+          <div key={m.gw} className="flex flex-1 flex-col items-center gap-1">
+            <span className="text-xs font-semibold text-slate-100 tabular-nums">
+              {blank ? '—' : `${m.minutes}'`}
+            </span>
+            <div className="flex h-16 w-full items-end">
+              <div className={`w-full rounded-sm ${color}`} style={{ height: `${pct}%` }} />
+            </div>
+            <span className="text-[10px] text-slate-500 tabular-nums">
+              {blank ? 'BGW' : `GW${m.gw}`}{m.fixtures === 2 ? ' ×2' : ''}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function PlayerDrawer({ player, teams, currentGw, onClose }: Props) {
   useEffect(() => {
     if (!player) return;
@@ -105,7 +143,20 @@ export function PlayerDrawer({ player, teams, currentGw, onClose }: Props) {
                 <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${STATUS_DOT[player.status]}`} title={player.news || player.status} />
                 <div>
                   <p className="text-base font-semibold text-slate-100">{player.name}</p>
-                  <p className="text-xs text-slate-400">{player.team.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-slate-400">{player.team.name}</p>
+                    {(() => {
+                      const ms = minutesSecurity(player);
+                      return (
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${ms.bg} ${ms.text}`}
+                          title={ms.title}
+                        >
+                          {ms.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -158,6 +209,28 @@ export function PlayerDrawer({ player, teams, currentGw, onClose }: Props) {
                   Last {player.recent_points.length} GW points
                 </p>
                 <RecentPoints points={player.recent_points} />
+              </div>
+            )}
+
+            {/* Minutes security */}
+            {player.recent_minutes.length > 0 && (
+              <div className="px-4 py-3 border-b border-slate-700">
+                <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-3">
+                  Last {player.recent_minutes.length} GW minutes
+                </p>
+                <MinutesSparkline minutes={player.recent_minutes} />
+                <div className="mt-3 grid grid-cols-2 gap-px bg-slate-700">
+                  <div className="bg-slate-800/80 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-slate-500">Start rate</p>
+                    <p className="text-sm font-semibold text-slate-100 tabular-nums">
+                      {player.start_rate === null ? '—' : `${Math.round(player.start_rate * 100)}%`}
+                    </p>
+                  </div>
+                  <div className="bg-slate-800/80 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-slate-500">Mins / match</p>
+                    <p className="text-sm font-semibold text-slate-100 tabular-nums">{player.avg_minutes}'</p>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -57,7 +57,10 @@ type PlayerGWStat struct {
 	PlayerExternalID int
 	GW               int
 	Minutes          int
-	Points           int
+	// Starts is how many of the gameweek's fixtures the player started (0, or up
+	// to 2 in a double gameweek). Drives the minutes-security signal.
+	Starts  int
+	Points  int
 	Goals            int
 	Assists          int
 	Bonus            int

@@ -21,6 +21,7 @@ const recentPointsWindow = 5
 type playerStore interface {
 	QueryPlayers(ctx context.Context, gameID, pos string, maxPrice float64, sort string, topN int) ([]store.PlayerRow, error)
 	QueryRecentGWPointsByGW(ctx context.Context, gameID string, window int) (map[string][]store.GWPoints, error)
+	QueryRecentGWMinutesByGW(ctx context.Context, gameID string, window int) (map[string][]store.GWMinutes, error)
 	CurrentGW(ctx context.Context, gameID string) (int, error)
 }
 
@@ -75,11 +76,25 @@ type playerJSON struct {
 	MustHave             bool           `json:"must_have"`
 	Fixtures             []fixtureJSON  `json:"fixtures"`
 	RecentPoints         []gwPointsJSON `json:"recent_points"`
+	// Minutes-security signal over the recent window. RecentMinutes is the
+	// per-gameweek playing time; StartRate is fixtures started ÷ fixtures the
+	// club played (null when the club played none in the window); AvgMinutes is
+	// mean minutes over gameweeks the club actually played.
+	RecentMinutes []gwMinutesJSON `json:"recent_minutes"`
+	StartRate     *float64        `json:"start_rate"`
+	AvgMinutes    int             `json:"avg_minutes"`
 }
 
 type gwPointsJSON struct {
 	GW     int `json:"gw"`
 	Points int `json:"points"`
+}
+
+type gwMinutesJSON struct {
+	GW       int `json:"gw"`
+	Minutes  int `json:"minutes"`
+	Starts   int `json:"starts"`
+	Fixtures int `json:"fixtures"`
 }
 
 type metaJSON struct {
@@ -121,7 +136,7 @@ func (h *PlayersHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	gw, _ := h.store.CurrentGW(r.Context(), game)
 
-	resp := buildPlayersResponse(game, gw, topN, players, h.mustHaveFlags(r.Context(), game), h.recentPoints(r.Context(), game))
+	resp := buildPlayersResponse(game, gw, topN, players, h.mustHaveFlags(r.Context(), game), h.recentPoints(r.Context(), game), h.recentMinutes(r.Context(), game))
 	b, _ := json.Marshal(resp)
 	h.cache.Set(r.Context(), cacheKey, b, 30*time.Minute)
 
@@ -150,7 +165,7 @@ func (h *PlayersHandler) Scatter(w http.ResponseWriter, r *http.Request) {
 	}
 	gw, _ := h.store.CurrentGW(r.Context(), game)
 
-	resp := buildPlayersResponse(game, gw, scatterTopN, players, h.mustHaveFlags(r.Context(), game), h.recentPoints(r.Context(), game))
+	resp := buildPlayersResponse(game, gw, scatterTopN, players, h.mustHaveFlags(r.Context(), game), h.recentPoints(r.Context(), game), h.recentMinutes(r.Context(), game))
 	b, _ := json.Marshal(resp)
 	h.cache.Set(r.Context(), cacheKey, b, 30*time.Minute)
 
@@ -271,7 +286,51 @@ func (h *PlayersHandler) recentPoints(ctx context.Context, game string) map[stri
 	return pts
 }
 
-func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mustHave map[string]bool, recent map[string][]store.GWPoints) playersResponse {
+// recentMinutes returns each player's per-gameweek minutes and starts over the
+// recent window. Like recent points this is auxiliary, so a query error degrades
+// to no history rather than failing the request.
+func (h *PlayersHandler) recentMinutes(ctx context.Context, game string) map[string][]store.GWMinutes {
+	mins, err := h.store.QueryRecentGWMinutesByGW(ctx, game, recentPointsWindow)
+	if err != nil {
+		slog.Warn("recent minutes: query failed", "game", game, "err", err)
+		return nil
+	}
+	return mins
+}
+
+// minutesSecurity converts a player's per-gameweek minutes into the JSON view
+// plus two derived figures: a fixture-level start rate and average minutes.
+//
+// Both figures are per fixture, not per gameweek, so double gameweeks are handled
+// sanely: the denominator is the number of fixtures the club actually played in
+// the window, a blank gameweek (0 fixtures) drops out, and a double gameweek (2
+// fixtures) counts twice. Averaging per fixture keeps average minutes on a 0–90
+// scale — a per-gameweek average would exceed 90 whenever a double gameweek
+// packs two matches into one week. The start rate is nil when the club played no
+// fixtures in the window, so callers can distinguish "no data" from "0%".
+func minutesSecurity(mins []store.GWMinutes) ([]gwMinutesJSON, *float64, int) {
+	out := make([]gwMinutesJSON, len(mins))
+	var startsTotal, fixturesTotal, minutesTotal int
+	for j, gm := range mins {
+		out[j] = gwMinutesJSON{GW: gm.GW, Minutes: gm.Minutes, Starts: gm.Starts, Fixtures: gm.Fixtures}
+		if gm.Fixtures == 0 {
+			continue // blank gameweek: excluded from rate and average
+		}
+		startsTotal += gm.Starts
+		fixturesTotal += gm.Fixtures
+		minutesTotal += gm.Minutes
+	}
+	var startRate *float64
+	avgMinutes := 0
+	if fixturesTotal > 0 {
+		r := float64(startsTotal) / float64(fixturesTotal)
+		startRate = &r
+		avgMinutes = int(math.Round(float64(minutesTotal) / float64(fixturesTotal)))
+	}
+	return out, startRate, avgMinutes
+}
+
+func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mustHave map[string]bool, recent map[string][]store.GWPoints, recentMins map[string][]store.GWMinutes) playersResponse {
 	players := make([]playerJSON, len(rows))
 	for i, r := range rows {
 		fixtures := make([]fixtureJSON, len(r.Fixtures))
@@ -286,6 +345,7 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mus
 		for j, gp := range recent[r.ID] {
 			recentPts[j] = gwPointsJSON{GW: gp.GW, Points: gp.Points}
 		}
+		recentMinutes, startRate, avgMinutes := minutesSecurity(recentMins[r.ID])
 		players[i] = playerJSON{
 			ID:                   r.ID,
 			GameID:               r.GameID,
@@ -305,6 +365,9 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mus
 			MustHave:             mustHave[r.ID],
 			Fixtures:             fixtures,
 			RecentPoints:         recentPts,
+			RecentMinutes:        recentMinutes,
+			StartRate:            startRate,
+			AvgMinutes:           avgMinutes,
 		}
 	}
 	return playersResponse{

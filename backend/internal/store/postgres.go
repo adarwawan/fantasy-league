@@ -97,12 +97,13 @@ func (s *Store) UpsertPlayers(ctx context.Context, players []fantasy.Player) err
 func (s *Store) UpsertPlayerGWStats(ctx context.Context, stats []fantasy.PlayerGWStat) error {
 	for _, st := range stats {
 		_, err := s.db.Exec(ctx, `
-			INSERT INTO player_gw_stats (player_id, game_id, gw, minutes, points, goals, assists, bonus, clean_sheets, defensive_contribution, influence, creativity, threat)
-			SELECT p.id, $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+			INSERT INTO player_gw_stats (player_id, game_id, gw, minutes, starts, points, goals, assists, bonus, clean_sheets, defensive_contribution, influence, creativity, threat)
+			SELECT p.id, $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 			FROM players p
 			WHERE p.game_id = $1 AND p.external_id = $2
 			ON CONFLICT (player_id, gw) DO UPDATE SET
 				minutes = EXCLUDED.minutes,
+				starts  = EXCLUDED.starts,
 				points  = EXCLUDED.points,
 				goals   = EXCLUDED.goals,
 				assists = EXCLUDED.assists,
@@ -112,7 +113,7 @@ func (s *Store) UpsertPlayerGWStats(ctx context.Context, stats []fantasy.PlayerG
 				influence  = EXCLUDED.influence,
 				creativity = EXCLUDED.creativity,
 				threat     = EXCLUDED.threat
-		`, st.GameID, st.PlayerExternalID, st.GW, st.Minutes, st.Points, st.Goals, st.Assists, st.Bonus, st.CleanSheets, st.DefCon, st.Influence, st.Creativity, st.Threat)
+		`, st.GameID, st.PlayerExternalID, st.GW, st.Minutes, st.Starts, st.Points, st.Goals, st.Assists, st.Bonus, st.CleanSheets, st.DefCon, st.Influence, st.Creativity, st.Threat)
 		if err != nil {
 			return fmt.Errorf("upsert gw stat player=%d gw=%d: %w", st.PlayerExternalID, st.GW, err)
 		}

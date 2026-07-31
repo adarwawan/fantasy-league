@@ -33,11 +33,22 @@ export interface Player {
   must_have:         boolean;
   fixtures:          Fixture[];
   recent_points:     GWPoints[];
+  // Minutes-security signal over the recent window.
+  recent_minutes:    GWMinutes[];
+  start_rate:        number | null; // fixtures started ÷ fixtures the club played; null = no data
+  avg_minutes:       number;
 }
 
 export interface GWPoints {
   gw:     number;
   points: number;
+}
+
+export interface GWMinutes {
+  gw:       number;
+  minutes:  number;
+  starts:   number; // fixtures started that GW (0, or up to 2 in a double)
+  fixtures: number; // fixtures the club played that GW (0 = blank, 2 = double)
 }
 
 export interface PlayersResponse {
