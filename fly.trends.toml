@@ -1,0 +1,28 @@
+# Trends service — separate Fly app from the main API (fantasy-league-api).
+# Own binary/port, independently deployable. Shares Neon + Upstash via secrets.
+#
+# IMPORTANT: run exactly ONE machine. The poller dedups in memory per process,
+# so multiple machines would each poll and write duplicate snapshot rows. Do not
+# scale replicas without first moving to a single-instance poller / advisory lock
+# (see docs/trends-deployment.md §6).
+app            = "fantasy-league-trends"
+primary_region = "sin"
+
+[build]
+  dockerfile = "backend/Dockerfile.trends"
+
+[env]
+  TRENDS_PORT          = "8081"
+  TRENDS_POLL_INTERVAL = "5m"
+  CORS_ALLOWED_ORIGINS = "https://fantasy.adarw.xyz"
+
+[http_service]
+  internal_port        = 8081
+  force_https          = true
+  auto_stop_machines   = false
+  auto_start_machines  = false
+  min_machines_running = 1
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "256mb"

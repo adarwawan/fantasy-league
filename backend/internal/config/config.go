@@ -49,6 +49,11 @@ type Config struct {
 	SPWindowMatches   int
 	SPRecencyHalfLife time.Duration
 	SPSyncCron        string
+
+	// Trends transfer-velocity service (isolated, own binary/port).
+	TrendsPort         string
+	TrendsPollInterval time.Duration
+	TrendsSyncSecret   string
 }
 
 type coldConfig struct {
@@ -84,6 +89,10 @@ type coldConfig struct {
 		RecencyHalfLife string `yaml:"recency_halflife"`
 		SyncCron        string `yaml:"sync_cron"`
 	} `yaml:"setpiece"`
+	Trends struct {
+		Port         int    `yaml:"port"`
+		PollInterval string `yaml:"poll_interval"`
+	} `yaml:"trends"`
 }
 
 // MustHaveConfig holds the thresholds for must-have player detection.
@@ -131,6 +140,8 @@ func loadColdConfig() coldConfig {
 	cc.SetPiece.WindowMatches = 6
 	cc.SetPiece.RecencyHalfLife = "1080h" // ~45 days
 	cc.SetPiece.SyncCron = "0 6 * * *"
+	cc.Trends.Port = 8081
+	cc.Trends.PollInterval = "5m"
 	cc.FPL.MustHave = defaultMustHave()
 	cc.WCF.MustHave = defaultMustHave()
 
@@ -198,6 +209,10 @@ func Load() Config {
 		SPWindowMatches:   envIntOr("SP_WINDOW_MATCHES", cc.SetPiece.WindowMatches),
 		SPRecencyHalfLife: envDurationOr("SP_RECENCY_HALFLIFE", cc.SetPiece.RecencyHalfLife, 1080*time.Hour),
 		SPSyncCron:        envStringOr("SP_SYNC_CRON", cc.SetPiece.SyncCron),
+
+		TrendsPort:         envStringOr("TRENDS_PORT", strconv.Itoa(cc.Trends.Port)),
+		TrendsPollInterval: envDurationOr("TRENDS_POLL_INTERVAL", cc.Trends.PollInterval, 5*time.Minute),
+		TrendsSyncSecret:   os.Getenv("TRENDS_SYNC_SECRET"),
 	}
 }
 

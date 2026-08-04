@@ -27,6 +27,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_URL: https://api.fantasy.adarw.xyz
+          VITE_TRENDS_API_URL: https://trends-api.fantasy.adarw.xyz
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

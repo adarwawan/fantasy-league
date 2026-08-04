@@ -1,0 +1,17 @@
+# Trends service image. Mirrors backend/Dockerfile but builds the isolated
+# ./cmd/trends binary (poller + read API on port 8081) instead of the main
+# server. Shares the same module, Neon DB and Upstash Redis at runtime.
+FROM golang:1.25-alpine AS builder
+WORKDIR /app
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ .
+RUN CGO_ENABLED=0 go build -o /bin/trends ./cmd/trends
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+WORKDIR /app
+COPY --from=builder /bin/trends /bin/trends
+COPY backend/config.yaml config.yaml
+EXPOSE 8081
+ENTRYPOINT ["/bin/trends"]

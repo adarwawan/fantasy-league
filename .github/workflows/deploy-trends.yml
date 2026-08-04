@@ -1,0 +1,37 @@
+name: Deploy Trends
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/**
+      - fly.trends.toml
+      - .github/workflows/deploy-trends.yml
+
+# The Trends service shares the same Neon DB and migrations directory as the main
+# API. `migrate up` is idempotent and golang-migrate takes a schema-level advisory
+# lock, so running it here in parallel with the backend workflow is safe.
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          go install -tags 'postgres' \
+            github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+          $(go env GOPATH)/bin/migrate -path backend/migrations -database "$DATABASE_URL" up
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl deploy -c fly.trends.toml --remote-only
+          MACHINE_ID=$(flyctl machine list -a fantasy-league-trends --json | jq -r '.[0].id')
+          flyctl machine start "$MACHINE_ID" -a fantasy-league-trends

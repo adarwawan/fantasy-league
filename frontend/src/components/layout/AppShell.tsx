@@ -12,6 +12,8 @@ const NAV_LINKS = [
   { to: 'set-pieces', label: 'Set Pieces', games: ['fpl'] },
   // Stats is FPL-specific (built around the FPL scoring rules).
   { to: 'stats',   label: 'Stats', games: ['fpl'] },
+  // Trends is FPL-only (transfer velocity near the deadline).
+  { to: 'trends',  label: 'Trends', games: ['fpl'] },
   { to: 'planner', label: 'Planner' },
 ];
 
