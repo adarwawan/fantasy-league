@@ -127,7 +127,7 @@ func loadColdConfig() coldConfig {
 	cc.Sync.PicksWorkers = 10
 	cc.Sync.FreshnessMaxAge = "26h"
 	cc.SetPiece.Enabled = false
-	cc.SetPiece.Season = "2025"
+	cc.SetPiece.Season = "2026"
 	cc.SetPiece.WindowMatches = 6
 	cc.SetPiece.RecencyHalfLife = "1080h" // ~45 days
 	cc.SetPiece.SyncCron = "0 6 * * *"

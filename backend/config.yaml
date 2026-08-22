@@ -60,7 +60,7 @@ sync:
 # `enabled` to true (and apply migration 009) to arm it.
 setpiece:
   enabled: true
-  season: "2025"        # Understat season = starting year (2025 = 2025/26)
+  season: "2026"        # Understat season = starting year (2026 = 2026/27)
   window_matches: 6     # rolling window of a team's most recent matches
   recency_halflife: 1080h  # ~45d exponential decay for recent-match weighting
   sync_cron: "0 6 * * *"   # daily 06:00; picks up all finished matches since last run
