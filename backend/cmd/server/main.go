@@ -77,13 +77,14 @@ func main() {
 	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FormGWWindow).
 		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg)).WithPicksWorkers(cfg.PicksWorkers)
 
-	// Scheduler — daily at 08:00 UTC (recurring sources only)
+	// Scheduler — daily at 09:15 UTC (recurring sources only)
+	// Aligned to sit after the GW lockdown at 09:00 UK time (scores final).
 	scheduler, err := gocron.NewScheduler()
 	if err != nil {
 		log.Fatalf("scheduler: %v", err)
 	}
 	_, err = scheduler.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(8, 0, 0))),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(9, 15, 0))),
 		gocron.NewTask(func() {
 			scheduledSyncer.RunAll(context.Background())
 		}),

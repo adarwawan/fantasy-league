@@ -47,7 +47,7 @@ form:
 
 sync:
   # Number of managers whose picks are fetched in parallel during a sync.
-  picks_workers: 10
+  picks_workers: 15
   # A game is reported unhealthy by GET /health/sync when its last successful
   # sync is older than this. The scheduled sync runs daily, so this must exceed
   # 24h; external monitors (Healthchecks.io / UptimeRobot) page on the 503.
