@@ -41,6 +41,8 @@ func main() {
 			FormPointsMin: mh.FormPointsMin,
 			FormRatio:     mh.FormRatio,
 			MaxNextFDR:    mh.MaxNextFDR,
+			MinXG:         mh.MinXG,
+			MinCSPct:      mh.MinCSPct,
 			TopGK:         mh.TopGK,
 			TopDEF:        mh.TopDEF,
 			TopMID:        mh.TopMID,

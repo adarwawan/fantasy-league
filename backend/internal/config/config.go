@@ -93,6 +93,8 @@ type MustHaveConfig struct {
 	FormPointsMin int     `yaml:"form_points_min"`
 	FormRatio     float64 `yaml:"form_ratio"`
 	MaxNextFDR    int     `yaml:"max_next_fdr"`
+	MinXG         float64 `yaml:"min_xg"`
+	MinCSPct      float64 `yaml:"min_cs_pct"`
 	TopGK         int     `yaml:"top_gk"`
 	TopDEF        int     `yaml:"top_def"`
 	TopMID        int     `yaml:"top_mid"`
@@ -105,6 +107,8 @@ func defaultMustHave() MustHaveConfig {
 		FormPointsMin: 6,
 		FormRatio:     0.5,
 		MaxNextFDR:    3,
+		MinXG:         2.0,
+		MinCSPct:      50,
 		TopGK:         4,
 		TopDEF:        8,
 		TopMID:        8,

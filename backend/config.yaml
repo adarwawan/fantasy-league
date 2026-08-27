@@ -4,8 +4,12 @@ server:
 # must_have (per game): a player is starred when all conditions hold —
 # top-K owned for their position, >= form_points_min in >= form_ratio of the
 # last form_window finished GWs (adaptive when fewer GWs have been played),
-# next-GW FDR <= max_next_fdr, and available.
-# Note: WCF fixtures always carry FDR 3, so max_next_fdr < 3 disables stars there.
+# a "green" next-GW fixture, and available.
+# Fixture "green" is odds-based (fresher than static FDR): defenders (GK/DEF)
+# need team clean-sheet odds >= min_cs_pct, attackers (MID/FWD) need team
+# xG >= min_xg. When a fixture carries no odds we fall back to FDR <= max_next_fdr.
+# Note: WCF is odds-disabled, so its stars use the FDR fallback; WCF fixtures
+# always carry FDR 3, so max_next_fdr < 3 disables stars there.
 
 fpl:
   sync_enabled: true
@@ -17,6 +21,8 @@ fpl:
     form_points_min: 6
     form_ratio: 0.5
     max_next_fdr: 3
+    min_xg: 2.0
+    min_cs_pct: 50
     top_gk: 4
     top_def: 8
     top_mid: 8
@@ -34,6 +40,8 @@ wcf:
     form_points_min: 6
     form_ratio: 0.5
     max_next_fdr: 3
+    min_xg: 2.0
+    min_cs_pct: 50
     top_gk: 4
     top_def: 8
     top_mid: 8

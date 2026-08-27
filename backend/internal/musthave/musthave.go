@@ -26,7 +26,9 @@ type Config struct {
 	FormWindow    int     // last N finished GWs to inspect
 	FormPointsMin int     // GW points threshold that counts as a hit
 	FormRatio     float64 // fraction of the inspected GWs that must be hits
-	MaxNextFDR    int     // next-GW fixture difficulty cutoff
+	MaxNextFDR    int     // next-GW fixture difficulty cutoff (odds fallback)
+	MinXG         float64 // next-GW team xG "green" cutoff (attackers)
+	MinCSPct      float64 // next-GW clean-sheet % "green" cutoff (defenders)
 	TopGK         int     // ownership rank cutoffs per position
 	TopDEF        int
 	TopMID        int
@@ -39,6 +41,8 @@ func DefaultConfig() Config {
 		FormPointsMin: 6,
 		FormRatio:     0.5,
 		MaxNextFDR:    3,
+		MinXG:         2.0,
+		MinCSPct:      50,
 		TopGK:         4,
 		TopDEF:        8,
 		TopMID:        8,
@@ -81,7 +85,9 @@ func ComputeForGame(ctx context.Context, s Store, gameID string, cfg Config) ([]
 //   - global ownership ranks inside the per-position cutoff
 //   - scored >= FormPointsMin in at least FormRatio of the gwsCounted
 //     inspected GWs (minimum 1 hit)
-//   - has a fixture in nextGW or nextGW+1 with difficulty <= MaxNextFDR
+//   - has a "green" fixture in nextGW or nextGW+1: for GK/DEF the team's
+//     clean-sheet odds >= MinCSPct, for MID/FWD the team's xG >= MinXG; when a
+//     fixture carries no odds we fall back to difficulty <= MaxNextFDR
 //     (nextGW+1 covers players who already played their nextGW match, since
 //     Fixtures only holds unplayed games)
 //   - status is available
@@ -112,7 +118,7 @@ func Compute(candidates []store.PlayerRow, pool []store.PlayerOwnership, recentP
 		if rank, ok := ranks[p.ID]; !ok || rank > topByPos[p.Position] {
 			continue
 		}
-		if !hasGoodFixture(p.Fixtures, nextGW, cfg.MaxNextFDR) {
+		if !hasGoodFixture(p.Fixtures, nextGW, p.Position, cfg) {
 			continue
 		}
 		hits := 0
@@ -160,15 +166,47 @@ func ownershipRanks(pool []store.PlayerOwnership) map[string]int {
 	return ranks
 }
 
-// hasGoodFixture reports whether the player has a good upcoming fixture at or
-// below maxFDR. Fixtures holds only unplayed games, so a player who has already
-// played their nextGW match has their earliest unplayed fixture in nextGW+1.
-// To treat such players fairly we consider fixtures in nextGW and nextGW+1.
-func hasGoodFixture(fixtures []store.FixtureInfo, nextGW, maxFDR int) bool {
+// hasGoodFixture reports whether the player has a "green" upcoming fixture.
+// Preference goes to bookmaker odds (fresher than static FDR): attackers need
+// team xG >= MinXG, defenders need clean-sheet odds >= MinCSPct. When a fixture
+// carries no odds we fall back to difficulty <= MaxNextFDR so stars don't vanish
+// whenever odds are absent (e.g. before bookmakers price a game, or odds-disabled
+// games). Fixtures holds only unplayed games, so a player who has already played
+// their nextGW match has their earliest unplayed fixture in nextGW+1; to treat
+// such players fairly we consider fixtures in nextGW and nextGW+1.
+func hasGoodFixture(fixtures []store.FixtureInfo, nextGW int, pos string, cfg Config) bool {
 	for _, f := range fixtures {
-		if (f.GW == nextGW || f.GW == nextGW+1) && f.Difficulty <= maxFDR {
+		if f.GW != nextGW && f.GW != nextGW+1 {
+			continue
+		}
+		if green, ok := fixtureIsGreen(f, pos, cfg); ok {
+			if green {
+				return true
+			}
+			continue
+		}
+		// No odds — fall back to static FDR.
+		if f.Difficulty <= cfg.MaxNextFDR {
 			return true
 		}
 	}
 	return false
+}
+
+// fixtureIsGreen evaluates a fixture against the odds-based "green" cutoffs for
+// the player's position. The second return is false when the fixture lacks the
+// odds needed for that position, signalling the caller to fall back to FDR.
+func fixtureIsGreen(f store.FixtureInfo, pos string, cfg Config) (green, ok bool) {
+	switch pos {
+	case "GK", "DEF":
+		if f.CSPct == nil {
+			return false, false
+		}
+		return *f.CSPct >= cfg.MinCSPct, true
+	default: // MID, FWD
+		if f.XG == nil {
+			return false, false
+		}
+		return *f.XG >= cfg.MinXG, true
+	}
 }

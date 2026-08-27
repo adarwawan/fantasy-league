@@ -18,6 +18,12 @@ func fixture(gw, difficulty int) store.FixtureInfo {
 	return store.FixtureInfo{GW: gw, Difficulty: difficulty}
 }
 
+// oddsFixture carries bookmaker odds; a hard FDR (5) proves the odds path, not
+// the FDR fallback, is what qualifies (or disqualifies) the fixture.
+func oddsFixture(gw int, xg, csPct float64) store.FixtureInfo {
+	return store.FixtureInfo{GW: gw, Difficulty: 5, XG: &xg, CSPct: &csPct}
+}
+
 func TestCompute_allConditionsMet(t *testing.T) {
 	cands := []store.PlayerRow{candidate("a", "MID", fixture(6, 2))}
 	pool := []store.PlayerOwnership{{PlayerID: "a", Position: "MID", GlobalOwnership: 50}}
@@ -134,6 +140,61 @@ func TestCompute_nextGWAlreadyPlayed(t *testing.T) {
 	flags := Compute(cands, pool, points, 5, 6, testConfig())
 	if !flags["a"] {
 		t.Errorf("expected a to be must-have via nextGW+1 fixture")
+	}
+}
+
+func TestCompute_oddsGreenFixture(t *testing.T) {
+	// Odds present and above cutoff qualify despite a hard FDR (5); below the
+	// cutoff they don't. Defenders judged on CS%, attackers on xG.
+	cfg := testConfig() // MinXG 2.0, MinCSPct 50
+	form := map[string][]int{"a": {8, 8, 8, 8, 8}}
+
+	cases := []struct {
+		name string
+		pos  string
+		fix  store.FixtureInfo
+		want bool
+	}{
+		{"attacker green xG", "MID", oddsFixture(6, 2.3, 10), true},
+		{"attacker low xG", "MID", oddsFixture(6, 1.5, 90), false},
+		{"defender green CS", "DEF", oddsFixture(6, 0.5, 55), true},
+		{"defender low CS", "DEF", oddsFixture(6, 3.0, 40), false},
+		{"gk green CS", "GK", oddsFixture(6, 0.5, 50), true},
+	}
+	for _, tc := range cases {
+		pool := []store.PlayerOwnership{{PlayerID: "a", Position: tc.pos, GlobalOwnership: 50}}
+		flags := Compute([]store.PlayerRow{candidate("a", tc.pos, tc.fix)}, pool, form, 5, 6, cfg)
+		if flags["a"] != tc.want {
+			t.Errorf("%s: got %v, want %v", tc.name, flags["a"], tc.want)
+		}
+	}
+}
+
+func TestCompute_missingOddsFallsBackToFDR(t *testing.T) {
+	// No odds on the fixture → decision falls back to FDR <= MaxNextFDR.
+	pool := []store.PlayerOwnership{{PlayerID: "a", Position: "MID", GlobalOwnership: 50}}
+	form := map[string][]int{"a": {8, 8, 8, 8, 8}}
+
+	easy := Compute([]store.PlayerRow{candidate("a", "MID", fixture(6, 2))}, pool, form, 5, 6, testConfig())
+	if !easy["a"] {
+		t.Errorf("expected FDR-2 fallback fixture to qualify")
+	}
+	hard := Compute([]store.PlayerRow{candidate("a", "MID", fixture(6, 4))}, pool, form, 5, 6, testConfig())
+	if hard["a"] {
+		t.Errorf("expected FDR-4 fallback fixture to not qualify")
+	}
+}
+
+func TestCompute_mixedOddsAndFallbackInDGW(t *testing.T) {
+	// A DGW with one odds-priced fixture (below cutoff) and one un-priced but
+	// easy-FDR fixture: the FDR fallback on the second still qualifies.
+	pool := []store.PlayerOwnership{{PlayerID: "a", Position: "MID", GlobalOwnership: 50}}
+	form := map[string][]int{"a": {8, 8, 8, 8, 8}}
+	cands := []store.PlayerRow{candidate("a", "MID", oddsFixture(6, 1.0, 10), fixture(6, 2))}
+
+	flags := Compute(cands, pool, form, 5, 6, testConfig())
+	if !flags["a"] {
+		t.Errorf("expected qualification via easy-FDR leg of the DGW")
 	}
 }
 
