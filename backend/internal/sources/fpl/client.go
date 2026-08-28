@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -22,9 +23,21 @@ const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/5
 // the FPL rate limiter recover instead of failing wholesale.
 const maxRetries = 4
 
+// bootstrapTTL is how long a fetched /bootstrap-static/ response is reused
+// before a fresh download. The endpoint is large (~600KB) and heavily rate
+// limited; on-demand reads (e.g. CurrentGW on every planner team-load) only
+// need the current gameweek, which barely changes within this window.
+const bootstrapTTL = 10 * time.Minute
+
 type client struct {
 	http    *http.Client
 	baseURL string
+
+	// bootstrapCache collapses concurrent misses onto a single fetch and serves
+	// a cached response for bootstrapTTL. See fetchBootstrap.
+	bootMu     sync.Mutex
+	bootData   *bootstrapResponse
+	bootExpiry time.Time
 }
 
 func newClient() *client {
@@ -233,9 +246,31 @@ type fplPick struct {
 	IsViceCaptain bool `json:"is_vice_captain"`
 }
 
+// fetchBootstrap returns /bootstrap-static/, cached for bootstrapTTL. The mutex
+// is held across the network fetch so concurrent misses collapse onto one
+// request instead of each hammering the rate-limited endpoint. If a refresh
+// fails but a previously cached response exists, that stale response is served
+// rather than propagating the error.
 func (c *client) fetchBootstrap(ctx context.Context) (*bootstrapResponse, error) {
+	c.bootMu.Lock()
+	defer c.bootMu.Unlock()
+
+	if c.bootData != nil && time.Now().Before(c.bootExpiry) {
+		return c.bootData, nil
+	}
+
 	var r bootstrapResponse
-	return &r, c.get(ctx, "/bootstrap-static/", &r)
+	if err := c.get(ctx, "/bootstrap-static/", &r); err != nil {
+		if c.bootData != nil {
+			// Serve the last good response rather than failing the caller.
+			return c.bootData, nil
+		}
+		return nil, err
+	}
+
+	c.bootData = &r
+	c.bootExpiry = time.Now().Add(bootstrapTTL)
+	return c.bootData, nil
 }
 
 func (c *client) fetchFixtures(ctx context.Context) ([]fplFixture, error) {
