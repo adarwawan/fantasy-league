@@ -4,11 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 )
 
 const baseURL = "https://fantasy.premierleague.com/api"
+
+// userAgent mimics a mainstream desktop browser. FPL sits behind Cloudflare,
+// which throttles (and sometimes blocks) requests carrying obviously scripted
+// User-Agent strings more aggressively than browser-like ones.
+const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+
+// maxRetries is how many times get retries a request that comes back 429 or 5xx
+// before giving up. Combined with jittered backoff this lets a burst that trips
+// the FPL rate limiter recover instead of failing wholesale.
+const maxRetries = 4
 
 type client struct {
 	http    *http.Client
@@ -23,25 +35,88 @@ func newClient() *client {
 }
 
 func (c *client) get(ctx context.Context, path string, dst any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("User-Agent", "fantasy-league-dashboard/0.1")
+	var (
+		lastStatus int
+		retryAfter time.Duration
+	)
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			// Wait before retrying: honor Retry-After if the server sent one,
+			// otherwise use exponential backoff with full jitter so a burst of
+			// workers doesn't retry in a synchronized wall.
+			if err := sleep(ctx, backoff(attempt, retryAfter)); err != nil {
+				return err
+			}
+		}
 
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("GET %s: %w", path, err)
-	}
-	defer resp.Body.Close()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("Accept", "application/json")
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: status %d", path, resp.StatusCode)
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return fmt.Errorf("GET %s: %w", path, err)
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			err := json.NewDecoder(resp.Body).Decode(dst)
+			resp.Body.Close()
+			if err != nil {
+				return fmt.Errorf("decode %s: %w", path, err)
+			}
+			return nil
+		}
+
+		// Retry on 429 (rate limited) and transient 5xx; anything else is fatal.
+		retriable := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500
+		lastStatus = resp.StatusCode
+		retryAfter = parseRetryAfter(resp.Header.Get("Retry-After"))
+		resp.Body.Close()
+		if !retriable || attempt == maxRetries {
+			return fmt.Errorf("GET %s: status %d", path, resp.StatusCode)
+		}
 	}
-	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
-		return fmt.Errorf("decode %s: %w", path, err)
+	return fmt.Errorf("GET %s: exhausted retries (last status %d)", path, lastStatus)
+}
+
+// backoff returns how long to wait before the given retry attempt (1-based).
+// It prefers a server-provided Retry-After, otherwise uses exponential backoff
+// (0.5s, 1s, 2s, 4s...) with full jitter to desynchronize concurrent workers.
+func backoff(attempt int, retryAfter time.Duration) time.Duration {
+	if retryAfter > 0 {
+		// Add a little jitter on top so many workers don't wake simultaneously.
+		return retryAfter + time.Duration(rand.Int63n(int64(500*time.Millisecond)))
 	}
-	return nil
+	base := (500 * time.Millisecond) << (attempt - 1)
+	return time.Duration(rand.Int63n(int64(base))) + base/2
+}
+
+// parseRetryAfter reads a Retry-After header expressed in delta-seconds. HTTP
+// dates are ignored (FPL sends seconds); an unparseable value yields 0.
+func parseRetryAfter(v string) time.Duration {
+	if v == "" {
+		return 0
+	}
+	secs, err := strconv.Atoi(v)
+	if err != nil || secs < 0 {
+		return 0
+	}
+	return time.Duration(secs) * time.Second
+}
+
+// sleep waits for d or until ctx is cancelled, whichever comes first.
+func sleep(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 // --- API response types ---
