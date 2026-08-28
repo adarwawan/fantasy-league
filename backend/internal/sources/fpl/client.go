@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -22,9 +23,20 @@ const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/5
 // the FPL rate limiter recover instead of failing wholesale.
 const maxRetries = 4
 
+// bootstrapTTL is how long a fetched /bootstrap-static/ response is reused.
+// This endpoint is large and heavily rate-limited, yet the data we read from it
+// (current gameweek, deadlines) changes at most once per gameweek, so serving
+// repeated on-demand reads (e.g. every planner team-load) from cache instead of
+// re-hitting FPL is what keeps interactive traffic from tripping the limiter.
+const bootstrapTTL = 10 * time.Minute
+
 type client struct {
 	http    *http.Client
 	baseURL string
+
+	bootMu     sync.Mutex
+	bootCache  *bootstrapResponse
+	bootExpiry time.Time
 }
 
 func newClient() *client {
@@ -233,9 +245,31 @@ type fplPick struct {
 	IsViceCaptain bool `json:"is_vice_captain"`
 }
 
+// fetchBootstrap returns /bootstrap-static/, served from a short-lived cache so
+// bursts of on-demand reads (planner team-loads, deadline checks) don't each
+// re-download the largest, most rate-limited FPL endpoint. The lock also
+// collapses concurrent misses into a single upstream request.
 func (c *client) fetchBootstrap(ctx context.Context) (*bootstrapResponse, error) {
+	c.bootMu.Lock()
+	defer c.bootMu.Unlock()
+
+	if c.bootCache != nil && time.Now().Before(c.bootExpiry) {
+		return c.bootCache, nil
+	}
+
 	var r bootstrapResponse
-	return &r, c.get(ctx, "/bootstrap-static/", &r)
+	if err := c.get(ctx, "/bootstrap-static/", &r); err != nil {
+		// On failure, fall back to stale cache if we have one rather than
+		// failing the request outright — a slightly old current-GW is far
+		// better than a 502 while FPL is briefly rate-limiting us.
+		if c.bootCache != nil {
+			return c.bootCache, nil
+		}
+		return nil, err
+	}
+	c.bootCache = &r
+	c.bootExpiry = time.Now().Add(bootstrapTTL)
+	return c.bootCache, nil
 }
 
 func (c *client) fetchFixtures(ctx context.Context) ([]fplFixture, error) {
