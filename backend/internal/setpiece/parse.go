@@ -20,6 +20,14 @@ func ParseShots(matchID string, shots []shot) []Event {
 			continue
 		}
 
+		// Skip own goals for target men: an own goal is a deflection credited to
+		// whoever last touched it (often a keeper or defender clearing), not a
+		// genuine set-piece threat, so counting it pollutes the target-man board
+		// (e.g. a keeper listed as a corner target after a deflected own goal).
+		if role == RoleTarget && s.Result == "OwnGoal" {
+			continue
+		}
+
 		team := s.HTeam
 		if s.HA == "a" {
 			team = s.ATeam
