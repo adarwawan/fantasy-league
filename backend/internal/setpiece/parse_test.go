@@ -74,6 +74,22 @@ func TestParseShots_ClassifiesBothRoles(t *testing.T) {
 	}
 }
 
+func TestParseShots_SkipsTargetOwnGoals(t *testing.T) {
+	shots := []shot{
+		// Corner deflected in as an own goal, credited to a keeper — must be dropped.
+		{Situation: situationFromCorner, Result: "OwnGoal", PlayerID: "99", Player: "Donnarumma", HTeam: "Man City", HA: "h", ShotType: "Head"},
+		// Genuine corner target header — must be kept.
+		{Situation: situationFromCorner, Result: "SavedShot", PlayerID: "1668", Player: "Target", HTeam: "Man City", HA: "h", ShotType: "Head"},
+	}
+	events := ParseShots("m1", shots)
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event after skipping own goal, got %d", len(events))
+	}
+	if events[0].PlayerID != "1668" {
+		t.Errorf("kept wrong event: %+v", events[0])
+	}
+}
+
 func TestMatchShots_FetchesAndDecodes(t *testing.T) {
 	fixture, _ := os.ReadFile("testdata/match.json")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
