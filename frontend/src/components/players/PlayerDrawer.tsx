@@ -137,8 +137,8 @@ export function PlayerDrawer({ player, teams, currentGw, onClose }: Props) {
       >
         {player && (
           <>
-            {/* Header */}
-            <div className="flex items-start justify-between p-4 border-b border-slate-700">
+            {/* Header (pinned) */}
+            <div className="flex items-start justify-between p-4 border-b border-slate-700 shrink-0">
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${STATUS_DOT[player.status]}`} title={player.news || player.status} />
                 <div>
@@ -171,6 +171,8 @@ export function PlayerDrawer({ player, teams, currentGw, onClose }: Props) {
               </div>
             </div>
 
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto">
             {/* Stats grid */}
             <div className="grid grid-cols-2 gap-px bg-slate-700 border-b border-slate-700">
               {[
@@ -235,7 +237,7 @@ export function PlayerDrawer({ player, teams, currentGw, onClose }: Props) {
             )}
 
             {/* Fixture run */}
-            <div className="flex-1 overflow-y-auto px-4 py-3">
+            <div className="px-4 py-3">
               <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-3">Fixture run ({player.fixtures.length} GWs)</p>
               <div className="flex flex-col gap-2">
                 {player.fixtures.map((f, i) => (
@@ -245,6 +247,7 @@ export function PlayerDrawer({ player, teams, currentGw, onClose }: Props) {
                   </div>
                 ))}
               </div>
+            </div>
             </div>
           </>
         )}
