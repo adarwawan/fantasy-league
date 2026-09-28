@@ -49,6 +49,13 @@ type Config struct {
 	SPWindowMatches   int
 	SPRecencyHalfLife time.Duration
 	SPSyncCron        string
+
+	// Shot-zone detector (isolated Understat module, open-play companion to
+	// the set-piece board).
+	SZEnabled       bool
+	SZSeason        string
+	SZWindowMatches int
+	SZSyncCron      string
 }
 
 type coldConfig struct {
@@ -84,6 +91,12 @@ type coldConfig struct {
 		RecencyHalfLife string `yaml:"recency_halflife"`
 		SyncCron        string `yaml:"sync_cron"`
 	} `yaml:"setpiece"`
+	ShotZone struct {
+		Enabled       bool   `yaml:"enabled"`
+		Season        string `yaml:"season"`
+		WindowMatches int    `yaml:"window_matches"`
+		SyncCron      string `yaml:"sync_cron"`
+	} `yaml:"shotzone"`
 }
 
 // MustHaveConfig holds the thresholds for must-have player detection.
@@ -135,6 +148,10 @@ func loadColdConfig() coldConfig {
 	cc.SetPiece.WindowMatches = 6
 	cc.SetPiece.RecencyHalfLife = "1080h" // ~45 days
 	cc.SetPiece.SyncCron = "0 6 * * *"
+	cc.ShotZone.Enabled = false
+	cc.ShotZone.Season = "2026"
+	cc.ShotZone.WindowMatches = 6
+	cc.ShotZone.SyncCron = "30 6 * * *"
 	cc.FPL.MustHave = defaultMustHave()
 	cc.WCF.MustHave = defaultMustHave()
 
@@ -202,6 +219,11 @@ func Load() Config {
 		SPWindowMatches:   envIntOr("SP_WINDOW_MATCHES", cc.SetPiece.WindowMatches),
 		SPRecencyHalfLife: envDurationOr("SP_RECENCY_HALFLIFE", cc.SetPiece.RecencyHalfLife, 1080*time.Hour),
 		SPSyncCron:        envStringOr("SP_SYNC_CRON", cc.SetPiece.SyncCron),
+
+		SZEnabled:       envBoolOr("SZ_ENABLED", cc.ShotZone.Enabled),
+		SZSeason:        envStringOr("SZ_SEASON", cc.ShotZone.Season),
+		SZWindowMatches: envIntOr("SZ_WINDOW_MATCHES", cc.ShotZone.WindowMatches),
+		SZSyncCron:      envStringOr("SZ_SYNC_CRON", cc.ShotZone.SyncCron),
 	}
 }
 

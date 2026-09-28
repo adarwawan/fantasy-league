@@ -10,6 +10,8 @@ const NAV_LINKS = [
   { to: 'teams',   label: 'Teams'   },
   // Set pieces is PL-wide and FPL-relevant (Understat-sourced).
   { to: 'set-pieces', label: 'Set Pieces', games: ['fpl'] },
+  // Shot zones is PL-wide and FPL-relevant (Understat-sourced, open-play).
+  { to: 'shot-zones', label: 'Shot Zones', games: ['fpl'] },
   // Stats is FPL-specific (built around the FPL scoring rules).
   { to: 'stats',   label: 'Stats', games: ['fpl'] },
   { to: 'planner', label: 'Planner' },

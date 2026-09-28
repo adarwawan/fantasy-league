@@ -72,3 +72,14 @@ setpiece:
   window_matches: 6     # rolling window of a team's most recent matches
   recency_halflife: 1080h  # ~45d exponential decay for recent-match weighting
   sync_cron: "0 6 * * *"   # daily 06:00; picks up all finished matches since last run
+
+# Shot-zone detector — open-play companion to the set-piece board (docs: "Shot
+# zone rankings — requirements & solution"). Ranks players by shots/goals/xG
+# per pitch zone (center/left/right inside the box, outside the box), plus a
+# per-team "shots conceded" weakness signal. Own tables (sz_*), sync, and
+# /api/shot-zones routes; never touches the players/fixtures pipeline.
+shotzone:
+  enabled: true
+  season: "2026"
+  window_matches: 6        # rolling window of a team's most recent matches
+  sync_cron: "30 6 * * *"  # daily 06:30, after the set-piece sync
