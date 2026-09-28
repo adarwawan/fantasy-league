@@ -16,6 +16,7 @@ import (
 	"fantasy-league/internal/handler"
 	"fantasy-league/internal/musthave"
 	"fantasy-league/internal/setpiece"
+	"fantasy-league/internal/shotzone"
 	fplsrc "fantasy-league/internal/sources/fpl"
 	"fantasy-league/internal/sources/odds"
 	wcfsrc "fantasy-league/internal/sources/wcf"
@@ -125,6 +126,38 @@ func main() {
 		}()
 	}
 
+	// Shot-zone detector — isolated Understat module, open-play companion to
+	// the set-piece board above. Own store, sync and schedule; never wired
+	// through fantasy.Source.
+	var szHandler *shotzone.Handler
+	if cfg.SZEnabled {
+		szClient := shotzone.NewClient(cfg.OddsCacheTTL, cache)
+		szStore := shotzone.NewStore(pg.Pool())
+		szService := shotzone.NewService(shotzone.Config{
+			Enabled:       cfg.SZEnabled,
+			Season:        cfg.SZSeason,
+			WindowMatches: cfg.SZWindowMatches,
+		}, szClient, szStore)
+		szHandler = shotzone.NewHandler(szStore, cache, cfg.SZWindowMatches)
+
+		if _, err := scheduler.NewJob(
+			gocron.CronJob(cfg.SZSyncCron, false),
+			gocron.NewTask(func() {
+				if err := szService.Sync(context.Background()); err != nil {
+					slog.Error("shotzone sync failed", "err", err)
+				}
+			}),
+		); err != nil {
+			log.Fatalf("schedule shotzone job: %v", err)
+		}
+
+		go func() {
+			if err := szService.Sync(context.Background()); err != nil {
+				slog.Error("shotzone startup sync failed", "err", err)
+			}
+		}()
+	}
+
 	scheduler.Start()
 
 	// Sync on startup (all sources, including once-only)
@@ -176,6 +209,14 @@ func main() {
 		r.Route("/api/setpiece", func(r chi.Router) {
 			r.Get("/teams", spHandler.Teams)
 			r.Get("/teams/{understat_team}", spHandler.Team)
+		})
+	}
+
+	// Shot-zone detector routes — isolated namespace, not under /api/{game}.
+	if szHandler != nil {
+		r.Route("/api/shot-zones", func(r chi.Router) {
+			r.Get("/teams", szHandler.Teams)
+			r.Get("/teams/{team}", szHandler.Team)
 		})
 	}
 

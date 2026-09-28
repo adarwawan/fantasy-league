@@ -6,6 +6,7 @@ import { TeamsPage }   from './pages/TeamsPage';
 import { StatsPage }   from './pages/StatsPage';
 import { PlannerPage } from './pages/PlannerPage';
 import { SetPiecesPage } from './pages/SetPiecesPage';
+import { ShotZonePage } from './pages/ShotZonePage';
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/:game/stats"   element={<AppShell><StatsPage /></AppShell>} />
           <Route path="/:game/planner" element={<AppShell><PlannerPage /></AppShell>} />
           <Route path="/:game/set-pieces" element={<AppShell><SetPiecesPage /></AppShell>} />
+          <Route path="/:game/shot-zones" element={<AppShell><ShotZonePage /></AppShell>} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
