@@ -1,3 +1,8 @@
+import { TeamBadge } from '../ui/TeamBadge';
+import { FilterBar } from '../ui/FilterBar';
+import { Field } from '../ui/Field';
+import { SegmentedControl } from '../ui/SegmentedControl';
+import { InlineEmpty } from '../ui/EmptyState';
 import React, { useMemo, useState } from 'react';
 import {
   createColumnHelper,
@@ -132,42 +137,24 @@ export function TeamFormTable({ teams, players, focusMode, window, currentGw, on
 
   return (
     <div>
-      {/* Controls */}
-      <div className="flex flex-wrap items-center gap-3 mb-3">
-        <div className="flex rounded-md overflow-hidden border border-slate-600">
-          {FOCUS_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => handleFocusChange(opt.value)}
-              className={`px-3 py-1 text-xs font-medium transition-colors ${
-                focusMode === opt.value
-                  ? 'bg-slate-500 text-slate-100'
-                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-slate-500">GWs:</span>
-          <div className="flex rounded-md overflow-hidden border border-slate-600">
-            {WINDOW_OPTIONS.map(w => (
-              <button
-                key={w}
-                onClick={() => onWindowChange(w)}
-                className={`px-2.5 py-1 text-xs font-medium transition-colors ${
-                  window === w
-                    ? 'bg-slate-500 text-slate-100'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                {w}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      <FilterBar summary={`${teams.length} teams`}>
+        <Field label="Focus">
+          <SegmentedControl
+            label="Team form focus"
+            value={focusMode}
+            onChange={handleFocusChange}
+            options={FOCUS_OPTIONS}
+          />
+        </Field>
+        <Field label="Window (gameweeks)">
+          <SegmentedControl
+            label="Form window in gameweeks"
+            value={String(window)}
+            onChange={v => onWindowChange(Number(v))}
+            options={WINDOW_OPTIONS.map(w => ({ value: String(w), label: String(w) }))}
+          />
+        </Field>
+      </FilterBar>
 
       {!isDesktop && (
         <MobileTeamCards
@@ -232,7 +219,10 @@ export function TeamFormTable({ teams, players, focusMode, window, currentGw, on
                       if (cell.column.id === 'name') {
                         return (
                           <td key={cell.id} className="px-3 py-2 text-sm font-medium text-slate-100">
-                            {team.name}
+                            <span className="flex items-center gap-2">
+                              <TeamBadge name={team.name} code={team.short_name} size="sm" />
+                              {team.name}
+                            </span>
                           </td>
                         );
                       }
@@ -290,7 +280,7 @@ export function TeamFormTable({ teams, players, focusMode, window, currentGw, on
                     <tr className="bg-slate-700/20 border-b border-slate-700/50">
                       <td colSpan={columns.length} className="px-6 py-3">
                         {teamPlayers.length === 0 ? (
-                          <span className="text-xs text-slate-500">No player data available.</span>
+                          <InlineEmpty>No player data yet.</InlineEmpty>
                         ) : (
                           <table className="w-full text-xs">
                             <thead>
@@ -420,6 +410,7 @@ function MobileTeamCards({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="text-slate-500 text-xs leading-none">{isExpanded ? '▼' : '▶'}</span>
+                    <TeamBadge name={team.name} code={team.short_name} size="sm" />
                     <span className="text-sm font-semibold text-slate-100 truncate">{team.name}</span>
                   </div>
                   <FormBadge value={team.ovr_form} />
@@ -463,7 +454,7 @@ function MobileTeamCards({
               {isExpanded && (
                 <div className="border-t border-slate-700/50 px-3 py-2">
                   {teamPlayers.length === 0 ? (
-                    <span className="text-xs text-slate-500">No player data available.</span>
+                    <InlineEmpty>No player data yet.</InlineEmpty>
                   ) : (
                     <ul className="divide-y divide-slate-700/40">
                       {teamPlayers.map(p => (

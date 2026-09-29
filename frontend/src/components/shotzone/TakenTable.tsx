@@ -1,3 +1,4 @@
+import { InlineEmpty } from '../ui/EmptyState';
 import type { TakenRow } from '../../types/shotzone';
 
 interface Props {
@@ -16,7 +17,7 @@ export function TakenTable({ rows, search, minShots }: Props) {
     .slice(0, 5);
 
   if (filtered.length === 0) {
-    return <div className="text-sm text-slate-500 py-4">No qualifying shots.</div>;
+    return <InlineEmpty>No shots match your filters.</InlineEmpty>;
   }
 
   return (

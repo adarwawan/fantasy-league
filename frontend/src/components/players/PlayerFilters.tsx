@@ -1,5 +1,11 @@
 import { useEffect, useState, type RefObject } from 'react';
 import type { PlayerQueryParams } from '../../api/players';
+import { FilterBar } from '../ui/FilterBar';
+import { Field } from '../ui/Field';
+import { SearchInput } from '../ui/SearchInput';
+import { PositionFilter } from '../ui/PositionFilter';
+import { PriceRange } from '../ui/PriceRange';
+import { SegmentedControl } from '../ui/SegmentedControl';
 
 // Fallback bounds used before player data is available. The live floor/cap are
 // derived from the cheapest/most expensive loaded player (see PlayersPage) and
@@ -7,9 +13,6 @@ import type { PlayerQueryParams } from '../../api/players';
 // automatically.
 const PRICE_MIN_FALLBACK = 4.0;
 const PRICE_MAX_FALLBACK = 15.5;
-
-type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
-const POSITIONS: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
 
 const TOP_N_OPTIONS: Record<string, readonly number[]> = {
   wcf: [100, 1000],
@@ -67,98 +70,46 @@ export function PlayerFilters({ game, params, onChange, search, onSearch, search
   }
 
   return (
-    <div className="flex flex-wrap gap-4 items-end mb-4">
-      {/* Search */}
-      <div>
-        <label htmlFor="player-search" className="block text-xs text-slate-400 mb-1">
-          Search player{' '}
-          <kbd className="text-[10px] bg-slate-700 border border-slate-600 rounded px-1 py-0.5 font-mono text-slate-400">/</kbd>
-        </label>
-        <input
+    <FilterBar>
+      <Field
+        label="Search player"
+        htmlFor="player-search"
+      >
+        <SearchInput
           id="player-search"
-          ref={searchRef}
-          type="search"
+          inputRef={searchRef}
           value={search}
-          onChange={e => onSearch(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Escape') { onSearch(''); (e.target as HTMLInputElement).blur(); } }}
-          placeholder="e.g. Salah"
-          className="px-3 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-40"
-          aria-label="Search players by name or team"
+          onChange={onSearch}
+          placeholder="e.g. Salah  ( / )"
+          label="Search players by name or team"
         />
-      </div>
+      </Field>
 
-      {/* Position toggle */}
-      <div>
-        <label className="block text-xs text-slate-400 mb-1">Position</label>
-        <div className="flex rounded-md border border-slate-600 overflow-hidden text-sm" role="group" aria-label="Filter by position">
-          <button
-            aria-pressed={!params.pos}
-            className={`px-3 py-1.5 ${!params.pos ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
-            onClick={() => onChange({ ...params, pos: undefined })}
-          >
-            All
-          </button>
-          {POSITIONS.map(p => (
-            <button
-              key={p}
-              aria-pressed={params.pos === p}
-              className={`px-3 py-1.5 border-l border-slate-600 ${params.pos === p ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
-              onClick={() => onChange({ ...params, pos: params.pos === p ? undefined : p })}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Field label="Position">
+        <PositionFilter value={params.pos} onChange={pos => onChange({ ...params, pos })} />
+      </Field>
 
-      {/* Price range */}
-      <div>
-        <label className="block text-xs text-slate-400 mb-1">Price range (£m)</label>
-        <div className="flex items-center gap-1.5">
-          <input
-            type="number"
-            min={PRICE_MIN}
-            max={PRICE_MAX - 0.5}
-            step={0.5}
-            value={minDraft}
-            onChange={e => setMinDraft(e.target.value)}
-            onBlur={e => commitMin(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-            aria-label="Minimum price"
-            className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-          <span className="text-slate-500 text-xs">–</span>
-          <input
-            type="number"
-            min={PRICE_MIN + 0.5}
-            max={PRICE_MAX}
-            step={0.5}
-            value={maxDraft}
-            onChange={e => setMaxDraft(e.target.value)}
-            onBlur={e => commitMax(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-            aria-label="Maximum price"
-            className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-        </div>
-      </div>
+      <Field label="Price (£m)">
+        <PriceRange
+          min={minDraft}
+          max={maxDraft}
+          onMinChange={setMinDraft}
+          onMaxChange={setMaxDraft}
+          onMinCommit={commitMin}
+          onMaxCommit={commitMax}
+          minBound={PRICE_MIN}
+          maxBound={PRICE_MAX}
+        />
+      </Field>
 
-      {/* Top-N */}
-      <div>
-        <label className="block text-xs text-slate-400 mb-1">Top-N</label>
-        <div className="flex rounded-md border border-slate-600 overflow-hidden text-sm" role="group" aria-label="Top N managers">
-          {topNOptions.map(n => (
-            <button
-              key={n}
-              aria-pressed={topN === n}
-              className={`px-3 py-1.5 border-l first:border-l-0 border-slate-600 ${topN === n ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
-              onClick={() => onChange({ ...params, top_n: n })}
-            >
-              Top-{topNLabel(n)}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
+      <Field label="Top-N managers">
+        <SegmentedControl
+          label="Top N managers"
+          value={String(topN)}
+          onChange={v => onChange({ ...params, top_n: Number(v) })}
+          options={topNOptions.map(n => ({ value: String(n), label: `Top-${topNLabel(n)}` }))}
+        />
+      </Field>
+    </FilterBar>
   );
 }

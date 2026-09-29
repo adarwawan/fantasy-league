@@ -1,3 +1,7 @@
+import { teamNameByCode } from '../setpiece/teamMeta';
+import { TeamBadge } from '../ui/TeamBadge';
+import { Card } from '../ui/Card';
+import { InlineEmpty } from '../ui/EmptyState';
 import type { TeamICTEntry, TeamICTPlayer } from '../../types/stats';
 
 interface Props {
@@ -49,16 +53,19 @@ function PlayerBadges({ p }: { p: TeamICTPlayer }) {
  */
 export function TeamICTCard({ entry }: Props) {
   return (
-    <div className="rounded-xl border border-slate-700/60 bg-slate-800/60 p-3">
+    <Card>
       <div className="flex items-center justify-between gap-2 mb-2">
-        <h3 className="text-sm font-semibold text-slate-100">{entry.team}</h3>
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+          <TeamBadge code={entry.team} size="sm" />
+          {teamNameByCode(entry.team)}
+        </h3>
         <span className="shrink-0 text-[11px] font-medium text-slate-400 tabular-nums">
           team ICT {entry.total_ict}
         </span>
       </div>
 
       {entry.players.length === 0 ? (
-        <p className="text-xs text-slate-500 py-2">No data yet.</p>
+        <InlineEmpty>No data yet.</InlineEmpty>
       ) : (
         <ol className="space-y-1.5">
           {entry.players.map((p, i) => (
@@ -95,6 +102,6 @@ export function TeamICTCard({ entry }: Props) {
           ))}
         </ol>
       )}
-    </div>
+    </Card>
   );
 }

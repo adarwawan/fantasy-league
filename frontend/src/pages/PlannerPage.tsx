@@ -8,8 +8,18 @@ import type { Player } from '../types/player';
 import { PlayerCard } from '../components/players/PlayerCard';
 import { PlayerDrawer } from '../components/players/PlayerDrawer';
 import { PositionBadge } from '../components/common/PositionBadge';
-import { SkeletonRow } from '../components/common/SkeletonRow';
-import { ErrorState } from '../components/common/ErrorState';
+import { QueryBoundary } from '../components/ui/QueryBoundary';
+import { TableSkeleton } from '../components/ui/Skeletons';
+import { Button } from '../components/ui/Button';
+import { CONTROL_CLASS } from '../components/ui/controlStyles';
+import { FilterBar } from '../components/ui/FilterBar';
+import { Field } from '../components/ui/Field';
+import { SearchInput } from '../components/ui/SearchInput';
+import { PositionFilter } from '../components/ui/PositionFilter';
+import { PriceRange } from '../components/ui/PriceRange';
+import { InlineEmpty } from '../components/ui/EmptyState';
+import { PageHeader } from '../components/layout/PageHeader';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 type Position = Player['position'];
 
@@ -17,6 +27,8 @@ type Position = Player['position'];
 const SQUAD_QUOTA: Record<Position, number> = { GK: 2, DEF: 5, MID: 5, FWD: 3 };
 const POSITION_ORDER: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
 const MAX_PER_CLUB = 3;
+const PLANNER_DESCRIPTION =
+  'Build a 15-player squad against the position and club limits, and track your budget as you go.';
 const DEFAULT_TEAM_VALUE = 100.0;
 
 // Games whose backend source implements team loading (fantasy.EntryLoader).
@@ -57,9 +69,7 @@ export function PlannerPage() {
   const [loadingEntry, setLoadingEntry] = useState(false);
   const [entryError, setEntryError] = useState<string | null>(null);
 
-  useEffect(() => {
-    document.title = `${game.toUpperCase()} — Planner`;
-  }, [game]);
+  usePageTitle('Planner');
 
   // Restore a saved squad once the player list is available (we need the full
   // Player objects to rebuild picks from stored ids).
@@ -194,29 +204,20 @@ export function PlannerPage() {
       .slice(0, 50);
   }, [data, search, posFilter, minPrice, maxPrice, pickedIds]);
 
-  if (isLoading) {
+  if (isLoading || isError || !data) {
     return (
       <div>
-        <h1 className="text-xl font-semibold text-slate-100 mb-4">{game.toUpperCase()} — Planner</h1>
-        <div className="overflow-x-auto rounded-lg border border-slate-700/50">
-          <table className="w-full text-sm" aria-label="Loading planner">
-            <tbody>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <SkeletonRow key={i} cols={['w-32', 'w-12', 'w-14', 'w-40']} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <PageHeader title="Planner" description={PLANNER_DESCRIPTION} />
+        <QueryBoundary
+          isLoading={isLoading}
+          isError={isError || !data}
+          onRetry={() => refetch()}
+          what="players"
+          skeleton={<TableSkeleton cols={['w-32', 'w-12', 'w-14', 'w-40']} label="Loading planner" />}
+        >
+          {null}
+        </QueryBoundary>
       </div>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <ErrorState
-        message="Failed to load players. Check your connection and try again."
-        onRetry={() => refetch()}
-      />
     );
   }
 
@@ -225,26 +226,26 @@ export function PlannerPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-slate-100">{game.toUpperCase()} — Planner</h1>
-        {picks.length > 0 && (
-          <button
-            onClick={clearSquad}
-            className="text-xs text-slate-400 hover:text-red-400 border border-slate-700 rounded-md px-2.5 py-1"
-          >
-            Clear squad
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Planner"
+        description={PLANNER_DESCRIPTION}
+        actions={
+          picks.length > 0 ? (
+            <button
+              onClick={clearSquad}
+              className="text-xs text-slate-400 hover:text-red-400 border border-slate-700 rounded-md px-2.5 py-1"
+            >
+              Clear squad
+            </button>
+          ) : undefined
+        }
+      />
 
       {/* Load an existing team from an FPL manager ID (FPL only) */}
       {ENTRY_LOADER_GAMES.includes(game) && (
         <div className="mb-4 rounded-lg border border-slate-700/50 bg-slate-800/40 px-4 py-3">
           <div className="flex flex-wrap items-end gap-2">
-            <div>
-              <label htmlFor="fpl-entry" className="block text-[10px] uppercase tracking-wide text-slate-500 mb-1">
-                Load from {game.toUpperCase()} ID
-              </label>
+            <Field label={`Load from ${game.toUpperCase()} ID`} htmlFor="fpl-entry">
               <input
                 id="fpl-entry"
                 type="text"
@@ -253,16 +254,12 @@ export function PlannerPage() {
                 onChange={e => setEntryId(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') loadEntry(); }}
                 placeholder="e.g. 123456"
-                className="w-40 px-3 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 placeholder-slate-500 tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className={`${CONTROL_CLASS} w-40 tabular-nums`}
               />
-            </div>
-            <button
-              onClick={loadEntry}
-              disabled={!entryId.trim() || loadingEntry}
-              className="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
+            </Field>
+            <Button onClick={loadEntry} disabled={!entryId.trim() || loadingEntry}>
               {loadingEntry ? 'Loading…' : 'Load team'}
-            </button>
+            </Button>
             {entryError && <span className="text-xs text-red-400">{entryError}</span>}
           </div>
           <p className="mt-1.5 text-[11px] text-slate-500">
@@ -379,63 +376,35 @@ export function PlannerPage() {
         {/* Add players column */}
         <section>
           <h2 className="text-sm font-semibold text-slate-300 mb-3">Add players</h2>
-          <div className="flex flex-wrap gap-2 items-center mb-3">
-            <input
-              type="search"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search player or team…"
-              className="flex-1 min-w-[10rem] px-3 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              aria-label="Search players to add"
-            />
-            <div className="flex rounded-md border border-slate-600 overflow-hidden text-sm" role="group" aria-label="Filter by position">
-              <button
-                aria-pressed={!posFilter}
-                className={`px-2.5 py-1.5 ${!posFilter ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
-                onClick={() => setPosFilter(null)}
-              >
-                All
-              </button>
-              {POSITION_ORDER.map(p => (
-                <button
-                  key={p}
-                  aria-pressed={posFilter === p}
-                  className={`px-2.5 py-1.5 border-l border-slate-600 ${posFilter === p ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
-                  onClick={() => setPosFilter(posFilter === p ? null : p)}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5" role="group" aria-label="Filter by price">
-              <span className="text-xs text-slate-500">£</span>
-              <input
-                type="number"
-                step={0.1}
-                min={0}
-                value={minPrice}
-                onChange={e => setMinPrice(e.target.value)}
-                placeholder="min"
-                aria-label="Minimum price"
-                className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          <FilterBar summary={`${available.length}${available.length === 50 ? '+' : ''} shown`}>
+            <Field label="Search player or team" htmlFor="planner-search">
+              <SearchInput
+                id="planner-search"
+                value={search}
+                onChange={setSearch}
+                placeholder="e.g. Salah"
+                label="Search players to add"
               />
-              <span className="text-slate-500 text-xs">–</span>
-              <input
-                type="number"
+            </Field>
+            <Field label="Position">
+              <PositionFilter value={posFilter} onChange={p => setPosFilter(p ?? null)} size="sm" />
+            </Field>
+            <Field label="Price (£m)">
+              <PriceRange
+                min={minPrice}
+                max={maxPrice}
+                onMinChange={setMinPrice}
+                onMaxChange={setMaxPrice}
                 step={0.1}
-                min={0}
-                value={maxPrice}
-                onChange={e => setMaxPrice(e.target.value)}
-                placeholder="max"
-                aria-label="Maximum price"
-                className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                minBound={0}
+                placeholders={{ min: 'min', max: 'max' }}
               />
-            </div>
-          </div>
+            </Field>
+          </FilterBar>
 
           <div className="flex flex-col gap-1.5 max-h-[70vh] overflow-y-auto pr-1">
             {available.length === 0 ? (
-              <p className="text-sm text-slate-500 py-4 text-center">No players match.</p>
+              <InlineEmpty>No players match your filters.</InlineEmpty>
             ) : (
               available.map(player => {
                 const blockReason = canAdd(player);
