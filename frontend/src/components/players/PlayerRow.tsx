@@ -1,3 +1,4 @@
+import { TeamBadge } from '../ui/TeamBadge';
 import { forwardRef } from 'react';
 import type { Row } from '@tanstack/react-table';
 import type { Player } from '../../types/player';
@@ -94,7 +95,7 @@ export const PlayerRow = forwardRef<HTMLTableRowElement, PlayerRowProps>(functio
       </td>
 
       {/* Team */}
-      <td className="px-3 py-2 text-sm text-slate-400">{player.team.short_name}</td>
+      <td className="px-3 py-2"><TeamBadge name={player.team.name} code={player.team.short_name} size="xs" /></td>
 
       {/* Position */}
       <td className="px-3 py-2">

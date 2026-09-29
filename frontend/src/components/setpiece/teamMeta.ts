@@ -16,7 +16,10 @@ const TEAM_META: Record<string, TeamMeta> = {
   'Chelsea':        { code: 'CHE', color: '#034694' },
   'Crystal Palace': { code: 'CRY', color: '#1B458F' },
   'Everton':        { code: 'EVE', color: '#003399' },
+  'Coventry':       { code: 'COV', color: '#59CBE8' },
   'Fulham':         { code: 'FUL', color: '#1B1B1B' },
+  'Hull':           { code: 'HUL', color: '#F5A12D' },
+  'Ipswich':        { code: 'IPS', color: '#0044AA' },
   'Leeds':          { code: 'LEE', color: '#FFCD00' },
   'Liverpool':      { code: 'LIV', color: '#C8102E' },
   'Man City':       { code: 'MCI', color: '#6CABDD' },
@@ -31,6 +34,18 @@ const TEAM_META: Record<string, TeamMeta> = {
 
 export function teamMeta(name: string): TeamMeta {
   return TEAM_META[name] ?? { code: name.slice(0, 3).toUpperCase(), color: '#64748b' };
+}
+
+/** Metadata for a known PL club, by full name or by 3-letter code; undefined otherwise. */
+export function findTeamMeta(name?: string, code?: string): TeamMeta | undefined {
+  if (name && TEAM_META[name]) return TEAM_META[name];
+  if (code) return Object.values(TEAM_META).find((m) => m.code === code);
+  return undefined;
+}
+
+/** Full club name for a 3-letter code, falling back to the code itself. */
+export function teamNameByCode(code: string): string {
+  return Object.keys(TEAM_META).find((n) => TEAM_META[n].code === code) ?? code;
 }
 
 /** Pick a readable text colour (black/white) for a solid hex background. */

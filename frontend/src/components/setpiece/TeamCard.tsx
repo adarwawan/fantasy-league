@@ -1,3 +1,4 @@
+import { InlineEmpty } from '../ui/EmptyState';
 import type { SetPieceTeam, TakerRow, TargetRow } from '../../types/setpiece';
 import { teamMeta, readableText } from './teamMeta';
 
@@ -115,7 +116,7 @@ function buildSplits(team: SetPieceTeam): Map<string, DutySplit> {
 
 function TargetTable({ rows, team }: { rows: TargetRow[]; team: SetPieceTeam }) {
   if (rows.length === 0) {
-    return <div className="text-sm text-slate-500 py-2">No observed set-piece shots in the window.</div>;
+    return <InlineEmpty>No observed set-piece shots in the window.</InlineEmpty>;
   }
   const maxXg  = Math.max(...rows.map((r) => r.xg), 0.01);
   const splits = buildSplits(team);

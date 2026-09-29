@@ -1,3 +1,4 @@
+import { TeamBadge } from '../ui/TeamBadge';
 import { useEffect } from 'react';
 import type { GWMinutes, GWPoints, Player } from '../../types/player';
 import type { Team } from '../../types/team';
@@ -144,6 +145,7 @@ export function PlayerDrawer({ player, teams, currentGw, onClose }: Props) {
                 <div>
                   <p className="text-base font-semibold text-slate-100">{player.name}</p>
                   <div className="flex items-center gap-2">
+                    <TeamBadge name={player.team.name} code={player.team.short_name} size="xs" />
                     <p className="text-xs text-slate-400">{player.team.name}</p>
                     {(() => {
                       const ms = minutesSecurity(player);

@@ -31,7 +31,7 @@ export function ZoneDiagram({ totals, activeTab, onSelect }: Props) {
         <button
           onClick={() => onSelect('overall')}
           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-            activeTab === 'overall' ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            activeTab === 'overall' ? 'bg-accent text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
           }`}
         >
           Overall

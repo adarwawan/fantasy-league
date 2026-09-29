@@ -4,12 +4,15 @@ import { useScatter } from '../../hooks/useScatter';
 import { ScatterPlot } from './ScatterPlot';
 import { AxisSelector, type AxisKey } from './AxisSelector';
 import { PlayerDrawer } from '../players/PlayerDrawer';
-import { ErrorState } from '../common/ErrorState';
+import { FilterBar } from '../ui/FilterBar';
+import { Field } from '../ui/Field';
+import { PositionFilter, type Position } from '../ui/PositionFilter';
+import { PriceRange } from '../ui/PriceRange';
+import { ErrorState } from '../ui/ErrorState';
+import { PanelSkeleton } from '../ui/Skeletons';
 import { priceCeiling, priceFloor } from '../../utils/price';
 import type { Player } from '../../types/player';
 
-type Position = 'GK' | 'DEF' | 'MID' | 'FWD';
-const POSITIONS: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
 
 // Thresholds below which a player is "fringe" (only hidden when BOTH are met).
 const FORM_FLOOR = 2.5;
@@ -77,95 +80,51 @@ export function ScatterView() {
   const handleDrawerClose = useCallback(() => setSelectedPlayer(null), []);
 
   if (isLoading) return (
-    <div className="h-[480px] rounded-lg border border-slate-700/50 bg-slate-800/40 animate-pulse" />
+    <PanelSkeleton height="h-[480px]" />
   );
   if (isError || !data) return (
-    <ErrorState
-      message="Failed to load scatter data. Check your connection and try again."
-      onRetry={() => refetch()}
-    />
+    <ErrorState what="player plot data" onRetry={() => refetch()} />
   );
 
   return (
     <>
-      {/* Controls bar */}
-      <div className="flex flex-wrap gap-4 items-end mb-6">
-        {/* Axis selectors */}
-        <div className="flex flex-col gap-2">
+      <FilterBar summary={`${filtered.length} players · click a dot to inspect`}>
+        <Field label="X axis" htmlFor="axis-x">
           <AxisSelector label="X" value={xAxis} onChange={v => set({ x: v })} />
+        </Field>
+        <Field label="Y axis" htmlFor="axis-y">
           <AxisSelector label="Y" value={yAxis} onChange={v => set({ y: v })} />
-        </div>
+        </Field>
 
-        <div className="h-10 border-l border-slate-700" />
+        <Field label="Position">
+          <PositionFilter value={pos} onChange={p => set({ pos: p })} />
+        </Field>
 
-        {/* Position filter */}
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Position</label>
-          <div className="flex rounded-md border border-slate-600 overflow-hidden text-sm">
-            <button
-              className={`px-3 py-1.5 ${!pos ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
-              onClick={() => set({ pos: undefined })}
-            >
-              All
-            </button>
-            {POSITIONS.map(p => (
-              <button
-                key={p}
-                className={`px-3 py-1.5 border-l border-slate-600 ${pos === p ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'}`}
-                onClick={() => set({ pos: pos === p ? undefined : p })}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Price range */}
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">Price range (£m)</label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              min={priceMin}
-              max={priceMax - 0.5}
-              step={0.5}
-              value={minPrice}
-              onChange={e => set({ min_price: parseFloat(e.target.value) <= priceMin ? undefined : e.target.value })}
-              aria-label="Minimum price"
-              className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-            <span className="text-slate-500 text-xs">–</span>
-            <input
-              type="number"
-              min={priceMin + 0.5}
-              max={priceMax}
-              step={0.5}
-              value={maxPrice}
-              onChange={e => set({ max_price: parseFloat(e.target.value) >= priceMax ? undefined : e.target.value })}
-              aria-label="Maximum price"
-              className="w-16 px-2 py-1.5 rounded-md bg-slate-700/50 border border-slate-600 text-sm text-slate-100 text-center tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-          </div>
-        </div>
+        <Field label="Price (£m)">
+          <PriceRange
+            min={String(minPrice)}
+            max={String(maxPrice)}
+            onMinChange={v => set({ min_price: parseFloat(v) <= priceMin ? undefined : v })}
+            onMaxChange={v => set({ max_price: parseFloat(v) >= priceMax ? undefined : v })}
+            minBound={priceMin}
+            maxBound={priceMax}
+          />
+        </Field>
 
         {/* Hide fringe players (low form + low ownership) */}
-        <label className="flex items-center gap-2 self-end pb-1.5 text-xs text-slate-300 cursor-pointer select-none">
+        <label className="flex cursor-pointer select-none items-center gap-2 pb-2 text-xs text-slate-300">
           <input
             type="checkbox"
             checked={!showAll}
             onChange={e => set({ all: e.target.checked ? undefined : '1' })}
-            className="accent-indigo-600 w-3.5 h-3.5"
+            className="h-3.5 w-3.5 accent-indigo-600"
           />
           Hide fringe
           {!showAll && hiddenCount > 0 && (
             <span className="text-slate-500">({hiddenCount} hidden)</span>
           )}
         </label>
-
-        <div className="text-xs text-slate-500 self-end pb-1">
-          {filtered.length} players · click dot to inspect
-        </div>
-      </div>
+      </FilterBar>
 
       <ScatterPlot
         players={filtered}

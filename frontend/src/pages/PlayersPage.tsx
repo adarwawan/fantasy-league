@@ -8,31 +8,27 @@ import { PlayerFilters } from '../components/players/PlayerFilters';
 import { PlayerTable } from '../components/players/PlayerTable';
 import { PlayerDrawer } from '../components/players/PlayerDrawer';
 import { ScatterView } from '../components/scatter/ScatterView';
-import { SkeletonRow } from '../components/common/SkeletonRow';
-import { ErrorState } from '../components/common/ErrorState';
+import { QueryBoundary } from '../components/ui/QueryBoundary';
+import { EmptyState } from '../components/ui/EmptyState';
+import { TableSkeleton } from '../components/ui/Skeletons';
+import { SegmentedControl } from '../components/ui/SegmentedControl';
+import { PageHeader } from '../components/layout/PageHeader';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { priceCeiling, priceFloor } from '../utils/price';
 
 type PlayerView = 'table' | 'plot';
 
 function ViewToggle({ view, onChange }: { view: PlayerView; onChange: (v: PlayerView) => void }) {
-  const opts: { id: PlayerView; label: string }[] = [
-    { id: 'table', label: 'Table' },
-    { id: 'plot',  label: 'Plot'  },
-  ];
   return (
-    <div className="flex rounded-md border border-slate-600 overflow-hidden text-sm">
-      {opts.map(({ id, label }) => (
-        <button
-          key={id}
-          onClick={() => onChange(id)}
-          className={`px-3 py-1 ${id !== 'table' ? 'border-l border-slate-600' : ''} ${
-            view === id ? 'bg-indigo-600 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl
+      label="Players view"
+      value={view}
+      onChange={onChange}
+      options={[
+        { value: 'table', label: 'Table' },
+        { value: 'plot', label: 'Plot' },
+      ]}
+    />
   );
 }
 
@@ -93,17 +89,14 @@ export function PlayersPage() {
     setSearchParams(sp, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  useEffect(() => {
-    document.title = `${game.toUpperCase()} — Players`;
-  }, [game]);
+  usePageTitle('Players');
 
   const header = (
-    <div className="flex items-center justify-between gap-3 mb-4">
-      <h1 className="text-xl font-semibold text-slate-100">
-        {game.toUpperCase()} — Players
-      </h1>
-      <ViewToggle view={view} onChange={setView} />
-    </div>
+    <PageHeader
+      title="Players"
+      description="Recent form, ownership and fixtures for every player. Switch to Plot to compare two signals side by side."
+      actions={<ViewToggle view={view} onChange={setView} />}
+    />
   );
 
   // `/` global shortcut focuses search
@@ -161,55 +154,50 @@ export function PlayersPage() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div>
-        {header}
-        <div className="overflow-x-auto rounded-lg border border-slate-700/50">
-          <table className="w-full text-sm" aria-label="Loading players">
-            <tbody>
-              {Array.from({ length: 10 }).map((_, i) => (
-                <SkeletonRow key={i} cols={PLAYER_SKELETON_COLS} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <ErrorState
-        message="Failed to load players. Check your connection and try again."
-        onRetry={() => refetch()}
-      />
-    );
+  function clearFilters() {
+    setSearchInput('');
+    setSearchParams(new URLSearchParams(), { replace: true });
   }
 
   return (
     <>
       <div>
         {header}
-        <PlayerFilters
-          game={game}
-          params={params}
-          onChange={handleChange}
-          search={searchInput}
-          onSearch={setSearchInput}
-          searchRef={searchRef}
-          priceMin={priceMin}
-          priceMax={priceMax}
-        />
-        <PlayerTable
-          players={filteredPlayers}
-          topNSize={data.meta.top_n_size}
-          teams={teamsData?.teams}
-          currentGw={data.meta.gw}
-          onPlayerClick={handlePlayerClick}
-        />
+        <QueryBoundary
+          isLoading={isLoading}
+          isError={isError || !data}
+          onRetry={() => refetch()}
+          what="players"
+          skeleton={<TableSkeleton cols={PLAYER_SKELETON_COLS} rows={10} label="Loading players" />}
+        >
+          {data && (
+            <>
+              <PlayerFilters
+                game={game}
+                params={params}
+                onChange={handleChange}
+                search={searchInput}
+                onSearch={setSearchInput}
+                searchRef={searchRef}
+                priceMin={priceMin}
+                priceMax={priceMax}
+              />
+              {filteredPlayers.length === 0 ? (
+                <EmptyState what="players" filtered onClear={clearFilters} />
+              ) : (
+                <PlayerTable
+                  players={filteredPlayers}
+                  topNSize={data.meta.top_n_size}
+                  teams={teamsData?.teams}
+                  currentGw={data.meta.gw}
+                  onPlayerClick={handlePlayerClick}
+                />
+              )}
+            </>
+          )}
+        </QueryBoundary>
       </div>
-      <PlayerDrawer player={selectedPlayer} teams={teamsData?.teams} currentGw={data.meta.gw} onClose={handleDrawerClose} />
+      <PlayerDrawer player={selectedPlayer} teams={teamsData?.teams} currentGw={data?.meta.gw} onClose={handleDrawerClose} />
     </>
   );
 }

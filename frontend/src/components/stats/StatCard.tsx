@@ -1,3 +1,6 @@
+import { Card } from '../ui/Card';
+import { TeamBadge } from '../ui/TeamBadge';
+import { InlineEmpty } from '../ui/EmptyState';
 import type { StatCard as StatCardData } from '../../types/stats';
 
 interface Props {
@@ -11,7 +14,7 @@ interface Props {
  */
 export function StatCard({ card }: Props) {
   return (
-    <div className="rounded-xl border border-slate-700/60 bg-slate-800/60 p-3">
+    <Card>
       <div className="flex items-center justify-between gap-2 mb-2">
         <h3 className="text-sm font-semibold text-slate-100 truncate">{card.label}</h3>
         <span className="shrink-0 text-[11px] font-medium text-emerald-300 bg-emerald-400/10 rounded px-1.5 py-0.5 tabular-nums">
@@ -20,7 +23,7 @@ export function StatCard({ card }: Props) {
       </div>
 
       {card.leaders.length === 0 ? (
-        <p className="text-xs text-slate-500 py-2">No data yet.</p>
+        <InlineEmpty>No data yet.</InlineEmpty>
       ) : (
         <ol className="space-y-1">
           {card.leaders.map((l) => (
@@ -29,7 +32,7 @@ export function StatCard({ card }: Props) {
                 {l.rank}
               </span>
               <span className="min-w-0 flex-1 truncate text-slate-200">{l.name}</span>
-              <span className="shrink-0 text-[11px] text-slate-500">{l.team}</span>
+              <TeamBadge code={l.team} size="xs" />
               <span className="w-8 shrink-0 text-right font-semibold text-slate-100 tabular-nums">
                 {l.value}
               </span>
@@ -37,6 +40,6 @@ export function StatCard({ card }: Props) {
           ))}
         </ol>
       )}
-    </div>
+    </Card>
   );
 }

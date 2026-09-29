@@ -1,3 +1,4 @@
+import { TeamBadge } from '../ui/TeamBadge';
 import type { Player } from '../../types/player';
 import type { Team } from '../../types/team';
 import { PositionBadge } from '../common/PositionBadge';
@@ -42,7 +43,7 @@ export function PlayerCard({
           <SetPieceBadges player={player} maxOrder={2} />
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-xs text-slate-400">{player.team.short_name}</span>
+          <TeamBadge name={player.team.name} code={player.team.short_name} size="xs" />
           <PositionBadge position={player.position} />
         </div>
       </div>
