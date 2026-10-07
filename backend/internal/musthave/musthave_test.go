@@ -49,7 +49,7 @@ func TestCompute_failsEachCondition(t *testing.T) {
 		nextGW int
 	}{
 		{"unavailable", store.PlayerRow{ID: "a", Position: "MID", Status: "injured", Fixtures: []store.FixtureInfo{fixture(6, 2)}}, goodPoints, 6},
-		{"no next fixture", candidate("a", "MID", fixture(8, 2)), goodPoints, 6},
+		{"no next fixture", candidate("a", "MID"), goodPoints, 6},
 		{"hard fixture", candidate("a", "MID", fixture(6, 4)), goodPoints, 6},
 		{"bad form", candidate("a", "MID", fixture(6, 2)), map[string][]int{"a": {8, 5, 5, 0, 0}}, 6},
 		{"no points at all", candidate("a", "MID", fixture(6, 2)), map[string][]int{}, 6},
@@ -119,20 +119,20 @@ func TestCompute_adaptiveThreshold(t *testing.T) {
 }
 
 func TestCompute_doubleGameweek(t *testing.T) {
-	// Two fixtures in the next GW: one easy is enough.
+	// Two fixtures in the next GW: one easy leg is enough.
 	cands := []store.PlayerRow{candidate("a", "MID", fixture(6, 5), fixture(6, 2))}
 	pool := []store.PlayerOwnership{{PlayerID: "a", Position: "MID", GlobalOwnership: 50}}
 	points := map[string][]int{"a": {8, 8, 8, 8, 8}}
 
 	flags := Compute(cands, pool, points, 5, 6, testConfig())
 	if !flags["a"] {
-		t.Errorf("expected a to be must-have via easier DGW fixture")
+		t.Errorf("expected a to be must-have via easier DGW leg")
 	}
 }
 
 func TestCompute_nextGWAlreadyPlayed(t *testing.T) {
-	// Player already played their nextGW (6) match, so Fixtures starts at 7
-	// (nextGW+1). A good fixture there still qualifies them.
+	// Player already played their nextGW (6) match, so their next fixtures
+	// are in GW 7. A good fixture there still qualifies them.
 	cands := []store.PlayerRow{candidate("a", "MID", fixture(7, 2))}
 	pool := []store.PlayerOwnership{{PlayerID: "a", Position: "MID", GlobalOwnership: 50}}
 	points := map[string][]int{"a": {8, 8, 8, 8, 8}}
@@ -206,5 +206,16 @@ func TestOwnershipRanks_tieBreakByID(t *testing.T) {
 	ranks := ownershipRanks(pool)
 	if ranks["a"] != 1 || ranks["b"] != 2 {
 		t.Errorf("expected deterministic tie-break a=1 b=2, got %v", ranks)
+	}
+}
+
+func TestCompute_onlyNextGWCounts(t *testing.T) {
+	// Hard next GW, easy one after: the player is not must-have.
+	cands := []store.PlayerRow{candidate("a", "MID", fixture(6, 5), fixture(7, 2))}
+	pool := []store.PlayerOwnership{{PlayerID: "a", Position: "MID", GlobalOwnership: 50}}
+	points := map[string][]int{"a": {8, 8, 8, 8, 8}}
+
+	if flags := Compute(cands, pool, points, 5, 6, testConfig()); flags["a"] {
+		t.Errorf("expected easy later GW to be ignored when the next GW is hard")
 	}
 }
