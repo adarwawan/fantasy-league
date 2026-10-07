@@ -1,6 +1,5 @@
 // Package musthave flags "must-have" players: highly owned, in form,
-// available, and with a good fixture in the next gameweek (or the one after,
-// for players who have already played their current-GW match).
+// available, and with a good fixture in their next gameweek.
 package musthave
 
 import (
@@ -85,11 +84,11 @@ func ComputeForGame(ctx context.Context, s Store, gameID string, cfg Config) ([]
 //   - global ownership ranks inside the per-position cutoff
 //   - scored >= FormPointsMin in at least FormRatio of the gwsCounted
 //     inspected GWs (minimum 1 hit)
-//   - has a "green" fixture in nextGW or nextGW+1: for GK/DEF the team's
-//     clean-sheet odds >= MinCSPct, for MID/FWD the team's xG >= MinXG; when a
-//     fixture carries no odds we fall back to difficulty <= MaxNextFDR
-//     (nextGW+1 covers players who already played their nextGW match, since
-//     Fixtures only holds unplayed games)
+//   - at least one fixture in their next GW (nextGW, or the following GW if
+//     they already played theirs) is "green": for GK/DEF the team's
+//     clean-sheet odds >= MinCSPct, for MID/FWD the team's xG >= MinXG; when
+//     a fixture carries no odds we fall back to difficulty <= MaxNextFDR.
+//     Later GWs don't count (see nextFixtures)
 //   - status is available
 //
 // pool must contain every player in the game so ownership ranks are computed
@@ -166,26 +165,40 @@ func ownershipRanks(pool []store.PlayerOwnership) map[string]int {
 	return ranks
 }
 
-// hasGoodFixture reports whether the player has a "green" upcoming fixture.
-// Preference goes to bookmaker odds (fresher than static FDR): attackers need
-// team xG >= MinXG, defenders need clean-sheet odds >= MinCSPct. When a fixture
-// carries no odds we fall back to difficulty <= MaxNextFDR so stars don't vanish
-// whenever odds are absent (e.g. before bookmakers price a game, or odds-disabled
-// games). Fixtures holds only unplayed games, so a player who has already played
-// their nextGW match has their earliest unplayed fixture in nextGW+1; to treat
-// such players fairly we consider fixtures in nextGW and nextGW+1.
-func hasGoodFixture(fixtures []store.FixtureInfo, nextGW int, pos string, cfg Config) bool {
+// nextFixtures returns the player's fixtures in their next gameweek with a
+// match: the earliest GW at or after nextGW. Fixtures holds only unplayed
+// games, so a player who already played their nextGW match resolves to the
+// following GW, and a double gameweek yields both legs.
+func nextFixtures(fixtures []store.FixtureInfo, nextGW int) []store.FixtureInfo {
+	target := 0
 	for _, f := range fixtures {
-		if f.GW != nextGW && f.GW != nextGW+1 {
-			continue
+		if f.GW >= nextGW && (target == 0 || f.GW < target) {
+			target = f.GW
 		}
+	}
+	var out []store.FixtureInfo
+	for _, f := range fixtures {
+		if target != 0 && f.GW == target {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// hasGoodFixture reports whether at least one of the player's next-GW fixtures
+// is "green". Preference goes to bookmaker odds (fresher than static FDR):
+// attackers need team xG >= MinXG, defenders need clean-sheet odds >=
+// MinCSPct. When a fixture carries no odds we fall back to difficulty <=
+// MaxNextFDR so stars don't vanish whenever odds are absent (e.g. before
+// bookmakers price a game, or odds-disabled games).
+func hasGoodFixture(fixtures []store.FixtureInfo, nextGW int, pos string, cfg Config) bool {
+	for _, f := range nextFixtures(fixtures, nextGW) {
 		if green, ok := fixtureIsGreen(f, pos, cfg); ok {
 			if green {
 				return true
 			}
 			continue
 		}
-		// No odds — fall back to static FDR.
 		if f.Difficulty <= cfg.MaxNextFDR {
 			return true
 		}
