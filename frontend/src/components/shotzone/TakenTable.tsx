@@ -21,12 +21,12 @@ export function TakenTable({ rows, search, minShots }: Props) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-700/50 overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="rounded-xl border border-slate-700/50 overflow-x-auto">
+      <table className="w-full min-w-[440px] text-sm whitespace-nowrap">
         <thead>
           <tr className="text-xs text-slate-500 border-b border-slate-700/60">
             <th className="text-left font-medium px-3 py-2 w-8">#</th>
-            <th className="text-left font-medium px-3 py-2">Player</th>
+            <th className="text-left font-medium px-3 py-2 sticky left-0 bg-slate-900">Player</th>
             <th className="text-right font-medium px-3 py-2">Shots</th>
             <th className="text-right font-medium px-3 py-2">Goals</th>
             <th className="text-right font-medium px-3 py-2">xG</th>
@@ -42,7 +42,7 @@ export function TakenTable({ rows, search, minShots }: Props) {
             return (
               <tr key={r.player_id} className="border-b border-slate-700/40 last:border-0">
                 <td className="px-3 py-2.5 text-slate-500 tabular-nums">{i + 1}</td>
-                <td className="px-3 py-2.5 font-semibold text-slate-100">{r.player_name}</td>
+                <td className="px-3 py-2.5 font-semibold text-slate-100 sticky left-0 bg-slate-900">{r.player_name}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-200">{r.shots}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-200">{r.goals}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-400">{r.xg.toFixed(2)}</td>
