@@ -445,7 +445,6 @@ function MobileTeamCards({
                       focusMode={focusMode}
                       oppOvrForm={formByShortName.get(tf.opp)}
                       currentGw={currentGw}
-                      compact
                     />
                   ))}
                 </div>
@@ -457,15 +456,25 @@ function MobileTeamCards({
                     <InlineEmpty>No player data yet.</InlineEmpty>
                   ) : (
                     <ul className="divide-y divide-slate-700/40">
-                      {teamPlayers.map(p => (
-                        <li key={p.id} className="flex items-center gap-2 py-1.5 text-xs">
-                          <PositionBadge position={p.position} />
-                          <span className="text-slate-200 truncate flex-1">{p.name}</span>
-                          <span className="tabular-nums text-slate-400">£{p.price.toFixed(1)}m</span>
-                          <span className="tabular-nums text-slate-300 w-10 text-right">F {p.form.toFixed(1)}</span>
-                          <span className="tabular-nums text-slate-400 w-12 text-right">{p.global_ownership.toFixed(1)}%</span>
-                        </li>
-                      ))}
+                      {teamPlayers.map(p => {
+                        const ms = minutesSecurity(p);
+                        return (
+                          <li key={p.id} className="py-1.5 text-xs">
+                            <div className="flex items-center gap-2">
+                              <PositionBadge position={p.position} />
+                              <span className="text-slate-200 truncate flex-1">{p.name}</span>
+                              <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${ms.bg} ${ms.text}`} title={ms.title}>
+                                {ms.label}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex items-center justify-end gap-3 tabular-nums text-slate-400">
+                              <span>£{p.price.toFixed(1)}m</span>
+                              <span className="text-slate-300">F {p.form.toFixed(1)}</span>
+                              <span>{p.global_ownership.toFixed(1)}%</span>
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>
