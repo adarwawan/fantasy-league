@@ -15,6 +15,11 @@ export function PlayerTooltip({ player, avgFdr }: Props) {
             ★ Must-have
           </span>
         )}
+        {player.watchlist && (
+          <span className="text-[10px] font-medium text-cyan-700 bg-cyan-100 rounded px-1 py-px">
+            ◆ Watchlist
+          </span>
+        )}
       </div>
       <div className="text-gray-500 text-xs mb-2">
         {player.team.short_name} · {player.position} · £{player.price.toFixed(1)}m

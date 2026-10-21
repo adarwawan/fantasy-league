@@ -22,6 +22,7 @@ import (
 	wcfsrc "fantasy-league/internal/sources/wcf"
 	"fantasy-league/internal/store"
 	syncsvc "fantasy-league/internal/sync"
+	"fantasy-league/internal/watchlist"
 )
 
 var validGames = map[string]bool{"fpl": true, "wcf": true, "uclf": true}
@@ -74,9 +75,9 @@ func main() {
 	}
 
 	startupSyncer := syncsvc.New(startupSources, pg, cache, cfg.FormGWWindow).
-		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg)).WithPicksWorkers(cfg.PicksWorkers)
+		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg)).WithWatchlist(watchlistConfigs(cfg)).WithPicksWorkers(cfg.PicksWorkers)
 	scheduledSyncer := syncsvc.New(scheduledSources, pg, cache, cfg.FormGWWindow).
-		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg)).WithPicksWorkers(cfg.PicksWorkers)
+		WithOdds(oddsDeps).WithGWStatsWindows(gwStatsWindows(cfg)).WithMustHave(mustHaveConfigs(cfg)).WithWatchlist(watchlistConfigs(cfg)).WithPicksWorkers(cfg.PicksWorkers)
 
 	// Scheduler — daily at 09:15 UTC (recurring sources only)
 	// Aligned to sit after the GW lockdown at 09:00 UK time (scores final).
@@ -267,6 +268,15 @@ func mustHaveConfigs(cfg config.Config) map[string]musthave.Config {
 			TopMID:        mh.TopMID,
 			TopFWD:        mh.TopFWD,
 		}
+	}
+	return out
+}
+
+// watchlistConfigs converts per-game watchlist bands into watchlist configs.
+func watchlistConfigs(cfg config.Config) map[string]watchlist.Config {
+	out := make(map[string]watchlist.Config, len(cfg.Watchlist))
+	for game, w := range cfg.Watchlist {
+		out[game] = watchlist.Config{MinOwnership: w.MinOwnership, MaxOwnership: w.MaxOwnership}
 	}
 	return out
 }

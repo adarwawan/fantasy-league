@@ -14,6 +14,7 @@ import (
 	"fantasy-league/internal/musthave"
 	"fantasy-league/internal/sources/odds"
 	"fantasy-league/internal/store"
+	"fantasy-league/internal/watchlist"
 )
 
 // mustHaveCacheTTL outlives the daily sync cadence so the players endpoints
@@ -88,6 +89,7 @@ type Syncer struct {
 	formGWWindow   int
 	gwStatsWindows map[string]int
 	mustHave       map[string]musthave.Config
+	watchlist      map[string]watchlist.Config
 	odds           *OddsDeps
 	picksWorkers   int
 }
@@ -108,6 +110,13 @@ func (s *Syncer) WithGWStatsWindows(windows map[string]int) *Syncer {
 // fall back to musthave.DefaultConfig.
 func (s *Syncer) WithMustHave(configs map[string]musthave.Config) *Syncer {
 	s.mustHave = configs
+	return s
+}
+
+// WithWatchlist sets per-game watchlist ownership bands. Games without an
+// entry fall back to watchlist.DefaultConfig.
+func (s *Syncer) WithWatchlist(configs map[string]watchlist.Config) *Syncer {
+	s.watchlist = configs
 	return s
 }
 
@@ -267,7 +276,7 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 
 	// 5. Must-have — computed from the freshly synced data. A nil result means
 	// the computation failed; the sync continues since stars are auxiliary.
-	mustHaveIDs := s.computeMustHave(ctx, gameID)
+	mustHaveIDs, watchlistIDs := s.computeFlags(ctx, gameID)
 
 	// 6. Invalidate cache
 	if err := s.cache.InvalidateGame(ctx, gameID); err != nil {
@@ -280,6 +289,15 @@ func (s *Syncer) run(ctx context.Context, src fantasy.Source) error {
 		if b, err := json.Marshal(mustHaveIDs); err == nil {
 			if err := s.cache.Set(ctx, store.CacheKey(gameID, "musthave"), b, mustHaveCacheTTL); err != nil {
 				slog.Warn("cache set musthave failed", "game", gameID, "err", err)
+			}
+		}
+	}
+
+	// 7b. Watchlist cache — same lifecycle as the must-have entry.
+	if watchlistIDs != nil {
+		if b, err := json.Marshal(watchlistIDs); err == nil {
+			if err := s.cache.Set(ctx, store.CacheKey(gameID, "watchlist"), b, mustHaveCacheTTL); err != nil {
+				slog.Warn("cache set watchlist failed", "game", gameID, "err", err)
 			}
 		}
 	}
@@ -415,20 +433,28 @@ func (s *Syncer) syncPicks(ctx context.Context, src fantasy.Source, gameID strin
 	return int(pickErrs)
 }
 
-// computeMustHave returns the sorted must-have player IDs for a game, or nil
-// when the computation fails (logged, never fatal).
-func (s *Syncer) computeMustHave(ctx context.Context, gameID string) []string {
+// computeFlags returns the sorted must-have and watchlist player IDs for a
+// game from one set of queries, or nil slices when the computation fails
+// (logged, never fatal).
+func (s *Syncer) computeFlags(ctx context.Context, gameID string) (mustHave, watch []string) {
 	cfg, ok := s.mustHave[gameID]
 	if !ok {
 		cfg = musthave.DefaultConfig()
 	}
-	ids, err := musthave.ComputeForGame(ctx, s.store, gameID, cfg)
+	wcfg, ok := s.watchlist[gameID]
+	if !ok {
+		wcfg = watchlist.DefaultConfig()
+	}
+	in, err := musthave.Load(ctx, s.store, gameID, cfg)
 	if err != nil {
 		slog.Warn("must-have compute failed", "game", gameID, "err", err)
-		return nil
+		return nil, nil
 	}
-	slog.Info("must-have computed", "game", gameID, "players", len(ids))
-	return ids
+	flags := musthave.Compute(in.Players, in.Pool, in.Points, in.GWsCounted, in.NextGW, cfg)
+	mustHave = musthave.SortedIDs(flags)
+	watch = musthave.SortedIDs(watchlist.Compute(in, cfg, wcfg, flags))
+	slog.Info("flags computed", "game", gameID, "must_have", len(mustHave), "watchlist", len(watch))
+	return mustHave, watch
 }
 
 // RunOdds runs the odds sync for a single game in isolation (used by the sync-odds CLI).

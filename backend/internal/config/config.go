@@ -34,6 +34,9 @@ type Config struct {
 
 	// MustHave holds per-game must-have thresholds, keyed by game ID.
 	MustHave map[string]MustHaveConfig
+	// Watchlist holds per-game differential ownership bands, keyed by game ID.
+	// Form and fixture rules come from the game's MustHave config.
+	Watchlist map[string]WatchlistConfig
 
 	OddsAPIKey     string
 	OddsCacheTTL   time.Duration
@@ -63,16 +66,18 @@ type coldConfig struct {
 		Port int `yaml:"port"`
 	} `yaml:"server"`
 	FPL struct {
-		SyncEnabled bool           `yaml:"sync_enabled"`
-		SyncOnce    bool           `yaml:"sync_once"`
-		LeagueID    int            `yaml:"league_id"`
-		OddsEnabled bool           `yaml:"odds_enabled"`
-		MustHave    MustHaveConfig `yaml:"must_have"`
+		SyncEnabled bool            `yaml:"sync_enabled"`
+		SyncOnce    bool            `yaml:"sync_once"`
+		LeagueID    int             `yaml:"league_id"`
+		OddsEnabled bool            `yaml:"odds_enabled"`
+		MustHave    MustHaveConfig  `yaml:"must_have"`
+		Watchlist   WatchlistConfig `yaml:"watchlist"`
 	} `yaml:"fpl"`
 	WCF struct {
-		SyncEnabled bool           `yaml:"sync_enabled"`
-		OddsEnabled bool           `yaml:"odds_enabled"`
-		MustHave    MustHaveConfig `yaml:"must_have"`
+		SyncEnabled bool            `yaml:"sync_enabled"`
+		OddsEnabled bool            `yaml:"odds_enabled"`
+		MustHave    MustHaveConfig  `yaml:"must_have"`
+		Watchlist   WatchlistConfig `yaml:"watchlist"`
 	} `yaml:"wcf"`
 	Odds struct {
 		CacheTTL string `yaml:"cache_ttl"`
@@ -112,6 +117,17 @@ type MustHaveConfig struct {
 	TopDEF        int     `yaml:"top_def"`
 	TopMID        int     `yaml:"top_mid"`
 	TopFWD        int     `yaml:"top_fwd"`
+}
+
+// WatchlistConfig is the global-ownership band (percent) for differential
+// players: MinOwnership <= ownership < MaxOwnership.
+type WatchlistConfig struct {
+	MinOwnership float64 `yaml:"min_ownership"`
+	MaxOwnership float64 `yaml:"max_ownership"`
+}
+
+func defaultWatchlist() WatchlistConfig {
+	return WatchlistConfig{MinOwnership: 2, MaxOwnership: 10}
 }
 
 func defaultMustHave() MustHaveConfig {
@@ -154,6 +170,8 @@ func loadColdConfig() coldConfig {
 	cc.ShotZone.SyncCron = "30 6 * * *"
 	cc.FPL.MustHave = defaultMustHave()
 	cc.WCF.MustHave = defaultMustHave()
+	cc.FPL.Watchlist = defaultWatchlist()
+	cc.WCF.Watchlist = defaultWatchlist()
 
 	path := os.Getenv("CONFIG_PATH")
 	if path == "" {
@@ -204,6 +222,10 @@ func Load() Config {
 		MustHave: map[string]MustHaveConfig{
 			"fpl": cc.FPL.MustHave,
 			"wcf": cc.WCF.MustHave,
+		},
+		Watchlist: map[string]WatchlistConfig{
+			"fpl": cc.FPL.Watchlist,
+			"wcf": cc.WCF.Watchlist,
 		},
 
 		OddsAPIKey:     os.Getenv("ODDS_API_KEY"),

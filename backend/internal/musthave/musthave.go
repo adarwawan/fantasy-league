@@ -49,34 +49,56 @@ func DefaultConfig() Config {
 	}
 }
 
+// Inputs is the loaded data a game's flag computations share, so must-have and
+// watchlist detection can run off a single set of queries.
+type Inputs struct {
+	Players    []store.PlayerRow
+	Pool       []store.PlayerOwnership
+	Points     map[string][]int
+	GWsCounted int
+	NextGW     int
+}
+
+// Load reads a game's must-have inputs from the store.
+func Load(ctx context.Context, s Store, gameID string, cfg Config) (Inputs, error) {
+	players, err := s.QueryPlayers(ctx, gameID, "", 0, "global_ownership", 0)
+	if err != nil {
+		return Inputs{}, fmt.Errorf("query players: %w", err)
+	}
+	pool, err := s.QueryPlayerOwnerships(ctx, gameID)
+	if err != nil {
+		return Inputs{}, fmt.Errorf("query ownerships: %w", err)
+	}
+	points, gwsCounted, err := s.QueryRecentGWPoints(ctx, gameID, cfg.FormWindow)
+	if err != nil {
+		return Inputs{}, fmt.Errorf("query recent points: %w", err)
+	}
+	gw, err := s.CurrentGW(ctx, gameID)
+	if err != nil {
+		return Inputs{}, fmt.Errorf("current gw: %w", err)
+	}
+	return Inputs{Players: players, Pool: pool, Points: points, GWsCounted: gwsCounted, NextGW: gw}, nil
+}
+
 // ComputeForGame loads a game's inputs from the store and returns the sorted
 // IDs of every must-have player. The result is never nil on success, so an
 // empty set is distinguishable from a failed computation.
 func ComputeForGame(ctx context.Context, s Store, gameID string, cfg Config) ([]string, error) {
-	players, err := s.QueryPlayers(ctx, gameID, "", 0, "global_ownership", 0)
+	in, err := Load(ctx, s, gameID, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("query players: %w", err)
+		return nil, err
 	}
-	pool, err := s.QueryPlayerOwnerships(ctx, gameID)
-	if err != nil {
-		return nil, fmt.Errorf("query ownerships: %w", err)
-	}
-	points, gwsCounted, err := s.QueryRecentGWPoints(ctx, gameID, cfg.FormWindow)
-	if err != nil {
-		return nil, fmt.Errorf("query recent points: %w", err)
-	}
-	gw, err := s.CurrentGW(ctx, gameID)
-	if err != nil {
-		return nil, fmt.Errorf("current gw: %w", err)
-	}
+	return SortedIDs(Compute(in.Players, in.Pool, in.Points, in.GWsCounted, in.NextGW, cfg)), nil
+}
 
-	flags := Compute(players, pool, points, gwsCounted, gw, cfg)
+// SortedIDs returns the keys of flags in sorted order, never nil.
+func SortedIDs(flags map[string]bool) []string {
 	ids := make([]string, 0, len(flags))
 	for id := range flags {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	return ids, nil
+	return ids
 }
 
 // Compute returns the IDs among candidates that satisfy every must-have
@@ -96,25 +118,35 @@ func ComputeForGame(ctx context.Context, s Store, gameID string, cfg Config) ([]
 // recentPoints maps player ID to points per inspected GW; gwsCounted is how
 // many finished GWs were inspected (may be fewer than FormWindow early on).
 func Compute(candidates []store.PlayerRow, pool []store.PlayerOwnership, recentPoints map[string][]int, gwsCounted, nextGW int, cfg Config) map[string]bool {
-	if nextGW <= 0 {
-		return nil
-	}
-
 	ranks := ownershipRanks(pool)
-	threshold := hitsNeeded(cfg, gwsCounted)
 	topByPos := map[string]int{
 		"GK":  cfg.TopGK,
 		"DEF": cfg.TopDEF,
 		"MID": cfg.TopMID,
 		"FWD": cfg.TopFWD,
 	}
+	return Select(candidates, recentPoints, gwsCounted, nextGW, cfg, func(p store.PlayerRow) bool {
+		rank, ok := ranks[p.ID]
+		return ok && rank <= topByPos[p.Position]
+	})
+}
+
+// Select applies every must-have condition except ownership, which the caller
+// supplies as ownerOK. It lets other flags (the watchlist) share the exact
+// same form, fixture and availability rules and differ only in ownership.
+func Select(candidates []store.PlayerRow, recentPoints map[string][]int, gwsCounted, nextGW int, cfg Config, ownerOK func(store.PlayerRow) bool) map[string]bool {
+	if nextGW <= 0 {
+		return nil
+	}
+
+	threshold := hitsNeeded(cfg, gwsCounted)
 
 	out := make(map[string]bool)
 	for _, p := range candidates {
 		if p.Status != "available" {
 			continue
 		}
-		if rank, ok := ranks[p.ID]; !ok || rank > topByPos[p.Position] {
+		if !ownerOK(p) {
 			continue
 		}
 		if !hasGoodFixture(p.Fixtures, nextGW, p.Position, cfg) {

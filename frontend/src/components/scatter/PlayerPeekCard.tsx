@@ -41,6 +41,11 @@ export function PlayerPeekCard({ player, avgFdr, onDetails, onClose }: Props) {
                   ★
                 </span>
               )}
+              {player.watchlist && (
+                <span className="text-[10px] font-medium text-cyan-400 bg-cyan-400/15 rounded px-1 py-px shrink-0">
+                  ◆
+                </span>
+              )}
             </div>
             <div className="text-xs text-slate-400 mt-0.5">
               {player.team.short_name} · {player.position} · £{player.price.toFixed(1)}m

@@ -74,6 +74,7 @@ type playerJSON struct {
 	DirectFreekicksOrder *int           `json:"direct_freekicks_order"`
 	CornersIndirectOrder *int           `json:"corners_indirect_freekicks_order"`
 	MustHave             bool           `json:"must_have"`
+	Watchlist            bool           `json:"watchlist"`
 	Fixtures             []fixtureJSON  `json:"fixtures"`
 	RecentPoints         []gwPointsJSON `json:"recent_points"`
 	// Minutes-security signal over the recent window. RecentMinutes is the
@@ -136,7 +137,7 @@ func (h *PlayersHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	gw, _ := h.store.CurrentGW(r.Context(), game)
 
-	resp := buildPlayersResponse(game, gw, topN, players, h.mustHaveFlags(r.Context(), game), h.recentPoints(r.Context(), game), h.recentMinutes(r.Context(), game))
+	resp := buildPlayersResponse(game, gw, topN, players, h.mustHaveFlags(r.Context(), game), h.watchlistFlags(r.Context(), game), h.recentPoints(r.Context(), game), h.recentMinutes(r.Context(), game))
 	b, _ := json.Marshal(resp)
 	h.cache.Set(r.Context(), cacheKey, b, 30*time.Minute)
 
@@ -165,7 +166,7 @@ func (h *PlayersHandler) Scatter(w http.ResponseWriter, r *http.Request) {
 	}
 	gw, _ := h.store.CurrentGW(r.Context(), game)
 
-	resp := buildPlayersResponse(game, gw, scatterTopN, players, h.mustHaveFlags(r.Context(), game), h.recentPoints(r.Context(), game), h.recentMinutes(r.Context(), game))
+	resp := buildPlayersResponse(game, gw, scatterTopN, players, h.mustHaveFlags(r.Context(), game), h.watchlistFlags(r.Context(), game), h.recentPoints(r.Context(), game), h.recentMinutes(r.Context(), game))
 	b, _ := json.Marshal(resp)
 	h.cache.Set(r.Context(), cacheKey, b, 30*time.Minute)
 
@@ -258,13 +259,22 @@ func defaultTopN(game string) int {
 // cache. Stars are auxiliary, so a missing or unreadable entry degrades to no
 // flags rather than failing the request.
 func (h *PlayersHandler) mustHaveFlags(ctx context.Context, game string) map[string]bool {
-	b, err := h.cache.Get(ctx, store.CacheKey(game, "musthave"))
+	return h.idFlags(ctx, game, "musthave")
+}
+
+// watchlistFlags is mustHaveFlags for the differential watchlist.
+func (h *PlayersHandler) watchlistFlags(ctx context.Context, game string) map[string]bool {
+	return h.idFlags(ctx, game, "watchlist")
+}
+
+func (h *PlayersHandler) idFlags(ctx context.Context, game, key string) map[string]bool {
+	b, err := h.cache.Get(ctx, store.CacheKey(game, key))
 	if err != nil || b == nil {
 		return nil
 	}
 	var ids []string
 	if err := json.Unmarshal(b, &ids); err != nil {
-		slog.Warn("must-have: bad cache entry", "game", game, "err", err)
+		slog.Warn("flags: bad cache entry", "game", game, "key", key, "err", err)
 		return nil
 	}
 	flags := make(map[string]bool, len(ids))
@@ -330,7 +340,7 @@ func minutesSecurity(mins []store.GWMinutes) ([]gwMinutesJSON, *float64, int) {
 	return out, startRate, avgMinutes
 }
 
-func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mustHave map[string]bool, recent map[string][]store.GWPoints, recentMins map[string][]store.GWMinutes) playersResponse {
+func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mustHave, watchlist map[string]bool, recent map[string][]store.GWPoints, recentMins map[string][]store.GWMinutes) playersResponse {
 	players := make([]playerJSON, len(rows))
 	for i, r := range rows {
 		fixtures := make([]fixtureJSON, len(r.Fixtures))
@@ -363,6 +373,7 @@ func buildPlayersResponse(game string, gw, topN int, rows []store.PlayerRow, mus
 			DirectFreekicksOrder: r.DirectFreekicksOrder,
 			CornersIndirectOrder: r.CornersIndirectOrder,
 			MustHave:             mustHave[r.ID],
+			Watchlist:            watchlist[r.ID],
 			Fixtures:             fixtures,
 			RecentPoints:         recentPts,
 			RecentMinutes:        recentMinutes,
