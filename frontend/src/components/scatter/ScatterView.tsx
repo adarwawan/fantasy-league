@@ -60,7 +60,7 @@ export function ScatterView() {
   const minPrice = searchParams.has('min_price') ? parseFloat(searchParams.get('min_price')!) : priceMin;
 
   // "Fringe" = barely owned AND out of form — noise on the plot. Hidden by
-  // default (must-haves are always kept). Toggle with the `all` param.
+  // default (must-haves and watchlist are always kept). Toggle with the `all` param.
   const showAll = searchParams.get('all') === '1';
 
   const priceScoped: Player[] = (data?.players ?? []).filter(p => {
@@ -71,7 +71,7 @@ export function ScatterView() {
   });
 
   const isFringe = (p: Player): boolean =>
-    !p.must_have && p.form < FORM_FLOOR && p.global_ownership < OWNERSHIP_FLOOR;
+    !p.must_have && !p.watchlist && p.form < FORM_FLOOR && p.global_ownership < OWNERSHIP_FLOOR;
 
   const filtered: Player[] = showAll ? priceScoped : priceScoped.filter(p => !isFringe(p));
   const hiddenCount = priceScoped.length - filtered.length;

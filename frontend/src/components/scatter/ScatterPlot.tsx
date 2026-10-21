@@ -46,6 +46,14 @@ function dotRadius(ownership: number): number {
 }
 
 const MUST_HAVE_COLOR = '#fbbf24'; // amber
+const WATCHLIST_COLOR = '#22d3ee'; // cyan
+
+// Diamond (gem) path centered on (cx, cy), sized to visually match a dot of radius r
+function gemPath(cx: number, cy: number, r: number): string {
+  const h = r * 1.5;
+  const w = r * 1.2;
+  return `M${cx},${cy - h}L${cx + w},${cy}L${cx},${cy + h}L${cx - w},${cy}Z`;
+}
 
 // 5-point star path centered on (cx, cy), sized to visually match a dot of radius r
 function starPath(cx: number, cy: number, r: number): string {
@@ -162,6 +170,12 @@ export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
           </svg>
           Must-have
         </div>
+        <div className="flex items-center gap-1.5 text-xs text-cyan-400 ml-2 pl-2 border-l border-slate-700">
+          <svg width="12" height="12" viewBox="-12 -12 24 24" aria-hidden="true">
+            <path d={gemPath(0, 0, 7)} fill="none" stroke={WATCHLIST_COLOR} strokeWidth={2} />
+          </svg>
+          Watchlist
+        </div>
         <div className="flex items-center gap-1.5 text-xs text-slate-500 ml-2 pl-2 border-l border-slate-700">
           dot size = ownership
         </div>
@@ -228,6 +242,19 @@ export function ScatterPlot({ players, xAxis, yAxis, onPlayerClick }: Props) {
                       fill={POS_COLORS[pos]}
                       fillOpacity={0.95}
                       stroke={MUST_HAVE_COLOR}
+                      strokeWidth={1.5}
+                      {...interactive}
+                    />
+                  );
+                }
+                if (payload.player.watchlist) {
+                  return (
+                    <path
+                      key={payload.player.id}
+                      d={gemPath(cx, cy, payload.r)}
+                      fill={POS_COLORS[pos]}
+                      fillOpacity={0.95}
+                      stroke={WATCHLIST_COLOR}
                       strokeWidth={1.5}
                       {...interactive}
                     />

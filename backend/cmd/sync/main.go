@@ -10,6 +10,7 @@ import (
 	fplsrc "fantasy-league/internal/sources/fpl"
 	"fantasy-league/internal/store"
 	syncsvc "fantasy-league/internal/sync"
+	"fantasy-league/internal/watchlist"
 )
 
 func main() {
@@ -49,6 +50,10 @@ func main() {
 			TopFWD:        mh.TopFWD,
 		}
 	}
-	syncer := syncsvc.New(sources, pg, cache, cfg.FormGWWindow).WithGWStatsWindows(windows).WithMustHave(mustHave).WithPicksWorkers(cfg.PicksWorkers)
+	wl := make(map[string]watchlist.Config, len(cfg.Watchlist))
+	for game, w := range cfg.Watchlist {
+		wl[game] = watchlist.Config{MinOwnership: w.MinOwnership, MaxOwnership: w.MaxOwnership}
+	}
+	syncer := syncsvc.New(sources, pg, cache, cfg.FormGWWindow).WithGWStatsWindows(windows).WithMustHave(mustHave).WithWatchlist(wl).WithPicksWorkers(cfg.PicksWorkers)
 	syncer.RunAll(ctx)
 }

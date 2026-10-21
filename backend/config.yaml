@@ -11,6 +11,11 @@ server:
 # Note: WCF is odds-disabled, so its stars use the FDR fallback; WCF fixtures
 # always carry FDR 3, so max_next_fdr < 3 disables stars there.
 
+# watchlist (per game): differentials. Same form/fixture/availability rules as
+# must_have (it reuses that block's thresholds), but global ownership must sit
+# in [min_ownership, max_ownership) percent. A must-have player is never also
+# on the watchlist.
+
 fpl:
   sync_enabled: true
   sync_once: false
@@ -27,6 +32,9 @@ fpl:
     top_def: 8
     top_mid: 8
     top_fwd: 5
+  watchlist:
+    min_ownership: 2
+    max_ownership: 10
 
 # WCF sunset after the 2026 World Cup final. The adapter and mapper stay in the
 # codebase (template for the next tournament); we just stop syncing and paying
@@ -46,6 +54,9 @@ wcf:
     top_def: 8
     top_mid: 8
     top_fwd: 5
+  watchlist:
+    min_ownership: 2
+    max_ownership: 10
 
 odds:
   cache_ttl: 60m

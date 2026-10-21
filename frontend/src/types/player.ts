@@ -31,6 +31,7 @@ export interface Player {
   direct_freekicks_order:           number | null;
   corners_indirect_freekicks_order: number | null;
   must_have:         boolean;
+  watchlist:         boolean; // differential: must-have rules at low ownership
   fixtures:          Fixture[];
   recent_points:     GWPoints[];
   // Minutes-security signal over the recent window.
