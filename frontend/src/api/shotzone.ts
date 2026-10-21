@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { ShotZoneTeamDetail, ShotZoneTeamsResponse } from '../types/shotzone';
+import type { ShotZoneSummaryResponse, ShotZoneTeamDetail, ShotZoneTeamsResponse } from '../types/shotzone';
 
 // The shot-zone module is PL-wide and isolated from the per-game pipeline
 // (open-play companion to the set-piece board), so its routes live under
@@ -10,4 +10,8 @@ export function fetchShotZoneTeams(): Promise<ShotZoneTeamsResponse> {
 
 export function fetchShotZoneTeam(team: string): Promise<ShotZoneTeamDetail> {
   return apiFetch<ShotZoneTeamDetail>(`/api/shot-zones/teams/${encodeURIComponent(team)}`);
+}
+
+export function fetchShotZoneSummary(): Promise<ShotZoneSummaryResponse> {
+  return apiFetch<ShotZoneSummaryResponse>('/api/shot-zones/summary');
 }

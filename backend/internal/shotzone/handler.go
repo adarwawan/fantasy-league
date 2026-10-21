@@ -104,6 +104,55 @@ func (h *Handler) Teams(w http.ResponseWriter, r *http.Request) {
 	writeRaw(w, b)
 }
 
+type teamTotal struct {
+	Team          string  `json:"team"`
+	Taken         int     `json:"taken"`
+	TakenGoals    int     `json:"taken_goals"`
+	TakenXG       float64 `json:"taken_xg"`
+	Conceded      int     `json:"conceded"`
+	ConcededGoals int     `json:"conceded_goals"`
+	ConcededXG    float64 `json:"conceded_xg"`
+}
+
+type summaryResponse struct {
+	WindowMatches int         `json:"window_matches"`
+	UpdatedAt     *time.Time  `json:"updated_at,omitempty"`
+	Teams         []teamTotal `json:"teams"`
+}
+
+// Summary handles GET /api/shot-zones/summary: every team's overall shots
+// taken and conceded in one response.
+func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	const cacheKey = "shotzone:summary"
+
+	if b := h.cacheGet(ctx, cacheKey); b != nil {
+		writeRaw(w, b)
+		return
+	}
+
+	totals, err := h.store.ReadTeamTotals(ctx)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "query failed")
+		return
+	}
+
+	resp := summaryResponse{WindowMatches: h.windowMatches, Teams: make([]teamTotal, 0, len(totals))}
+	for _, t := range totals {
+		resp.Teams = append(resp.Teams, teamTotal{
+			Team: t.Team, Taken: t.Taken, TakenGoals: t.TakenGoals, TakenXG: round2(t.TakenXG),
+			Conceded: t.Conceded, ConcededGoals: t.ConcededGoals, ConcededXG: round2(t.ConcededXG),
+		})
+	}
+	if ts, err := h.store.BoardUpdatedAt(ctx); err == nil && !ts.IsZero() {
+		resp.UpdatedAt = &ts
+	}
+
+	b, _ := json.Marshal(resp)
+	h.cacheSet(ctx, cacheKey, b)
+	writeRaw(w, b)
+}
+
 // Team handles GET /api/shot-zones/teams/{team}.
 func (h *Handler) Team(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

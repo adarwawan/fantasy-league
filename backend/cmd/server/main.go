@@ -217,6 +217,7 @@ func main() {
 	if szHandler != nil {
 		r.Route("/api/shot-zones", func(r chi.Router) {
 			r.Get("/teams", szHandler.Teams)
+			r.Get("/summary", szHandler.Summary)
 			r.Get("/teams/{team}", szHandler.Team)
 		})
 	}
