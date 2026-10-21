@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchShotZoneTeam, fetchShotZoneTeams } from '../api/shotzone';
+import { fetchShotZoneSummary, fetchShotZoneTeam, fetchShotZoneTeams } from '../api/shotzone';
 
 export function useShotZoneTeams() {
   return useQuery({
@@ -14,6 +14,14 @@ export function useShotZoneTeam(team: string | undefined) {
     queryKey:  ['shotzone', 'team', team],
     queryFn:   () => fetchShotZoneTeam(team as string),
     enabled:   !!team,
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useShotZoneSummary() {
+  return useQuery({
+    queryKey:  ['shotzone', 'summary'],
+    queryFn:   fetchShotZoneSummary,
     staleTime: 30 * 60 * 1000,
   });
 }

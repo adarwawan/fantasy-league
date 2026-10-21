@@ -244,3 +244,45 @@ func scanTaken(rows pgx.Rows) ([]TakenRow, error) {
 	}
 	return out, rows.Err()
 }
+
+// TeamShotTotal is one team's overall open-play shots taken and conceded over
+// its rolling window.
+type TeamShotTotal struct {
+	Team          string
+	Taken         int
+	TakenGoals    int
+	TakenXG       float64
+	Conceded      int
+	ConcededGoals int
+	ConcededXG    float64
+}
+
+// ReadTeamTotals returns every team's overall taken/conceded totals in one
+// query, for the league-wide overview.
+func (s *Store) ReadTeamTotals(ctx context.Context) ([]TeamShotTotal, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT t.team, t.shots, t.goals, t.xg,
+		       COALESCE(c.shots, 0), COALESCE(c.goals, 0), COALESCE(c.xg, 0)
+		FROM (
+			SELECT team, sum(shots)::int AS shots, sum(goals)::int AS goals, sum(xg)::float8 AS xg
+			FROM sz_taken_board
+			WHERE zone = 'overall'
+			GROUP BY team
+		) t
+		LEFT JOIN sz_conceded_board c ON c.team = t.team AND c.zone = 'overall'
+		ORDER BY t.team
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("read team totals: %w", err)
+	}
+	defer rows.Close()
+	var out []TeamShotTotal
+	for rows.Next() {
+		var r TeamShotTotal
+		if err := rows.Scan(&r.Team, &r.Taken, &r.TakenGoals, &r.TakenXG, &r.Conceded, &r.ConcededGoals, &r.ConcededXG); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}

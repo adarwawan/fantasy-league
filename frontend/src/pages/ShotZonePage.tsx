@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useShotZoneTeam, useShotZoneTeams } from '../hooks/useShotZone';
+import { useShotZoneSummary, useShotZoneTeam, useShotZoneTeams } from '../hooks/useShotZone';
 import { QueryBoundary } from '../components/ui/QueryBoundary';
 import { ErrorState } from '../components/ui/ErrorState';
 import { PanelSkeleton } from '../components/ui/Skeletons';
@@ -30,7 +30,10 @@ export function ShotZonePage() {
   const [search, setSearch] = useState('');
   const [minShots, setMinShots] = useState(0);
 
+  const { data: summary } = useShotZoneSummary();
+
   const teams = teamsData?.teams ?? [];
+  const totalByTeam = new Map((summary?.teams ?? []).map((t) => [t.team, t]));
 
   usePageTitle('Shot Zones');
 
@@ -109,7 +112,11 @@ export function ShotZonePage() {
             id="shotzone-team"
             value={team ?? ''}
             onChange={setTeam}
-            options={teams.map((t) => ({ value: t, label: t }))}
+            options={teams.map((t) => {
+              const tot = totalByTeam.get(t);
+              const n = tot ? (mode === 'taken' ? tot.taken : tot.conceded) : undefined;
+              return { value: t, label: n === undefined ? t : `${t} · ${n}` };
+            })}
           />
         </Field>
       </FilterBar>

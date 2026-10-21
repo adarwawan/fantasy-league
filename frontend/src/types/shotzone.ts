@@ -47,3 +47,19 @@ export interface ShotZoneTeamDetail {
   taken:          ZoneTakenSet;
   conceded:       ZoneConcededSet;
 }
+
+export interface ShotZoneTeamTotal {
+  team:           string;
+  taken:          number;
+  taken_goals:    number;
+  taken_xg:       number;
+  conceded:       number;
+  conceded_goals: number;
+  conceded_xg:    number;
+}
+
+export interface ShotZoneSummaryResponse {
+  window_matches: number;
+  updated_at?:    string;
+  teams:          ShotZoneTeamTotal[];
+}
