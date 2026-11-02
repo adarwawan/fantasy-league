@@ -12,10 +12,10 @@ frontend/node_modules/
 frontend/dist/
 *.tsbuildinfo
 
-*.md
-
-# Claude config
-.claude/
+# Claude Code: share .claude/ (settings, rules, skills, hooks); keep personal state local
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
 
 # Infra
 .env.infra
