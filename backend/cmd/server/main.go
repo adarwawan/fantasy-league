@@ -5,6 +5,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -13,6 +14,7 @@ import (
 
 	"fantasy-league/internal/config"
 	"fantasy-league/internal/fantasy"
+	"fantasy-league/internal/fotmob"
 	"fantasy-league/internal/handler"
 	"fantasy-league/internal/musthave"
 	"fantasy-league/internal/setpiece"
@@ -159,6 +161,53 @@ func main() {
 		}()
 	}
 
+	// FotMob v2 — same features as the two Understat modules above, own tables
+	// (sp2_*, sz2_*) and routes (/api/v2/...), one shared sync.
+	var spV2Handler *setpiece.Handler
+	var szV2Handler *shotzone.Handler
+	if cfg.FMEnabled {
+		spV2Store := setpiece.NewStoreV2(pg.Pool())
+		szV2Store := shotzone.NewStoreV2(pg.Pool())
+		fmService := fotmob.NewService(fotmob.Config{
+			Enabled:         cfg.FMEnabled,
+			Season:          cfg.FMSeason,
+			SPWindowMatches: cfg.FMSPWindowMatches,
+			SZWindowMatches: cfg.FMSZWindowMatches,
+			RecencyHalfLife: cfg.FMRecencyHalfLife,
+			RequestDelay:    500 * time.Millisecond,
+		}, fotmob.NewClient(cfg.OddsCacheTTL, cache), spV2Store, szV2Store)
+		spV2Handler = setpiece.NewHandler(spV2Store, cache, cfg.FMSPWindowMatches)
+		szV2Handler = shotzone.NewHandler(szV2Store, cache, cfg.FMSZWindowMatches)
+
+		if _, err := scheduler.NewJob(
+			gocron.CronJob(cfg.FMSyncCron, false),
+			gocron.NewTask(func() {
+				if err := fmService.Sync(context.Background()); err != nil {
+					slog.Error("fotmob sync failed", "err", err)
+				}
+			}),
+		); err != nil {
+			log.Fatalf("schedule fotmob job: %v", err)
+		}
+		go func() {
+			if err := fmService.Sync(context.Background()); err != nil {
+				slog.Error("fotmob startup sync failed", "err", err)
+			}
+		}()
+	}
+
+	// Cutover: the unversioned routes below are served by v2 when serve_v2 is
+	// set, so the frontend keeps calling the same API. /api/v2/... stays
+	// available either way for side-by-side comparison.
+	activeSP, activeSZ := spHandler, szHandler
+	if cfg.FMServeV2 {
+		if !cfg.FMEnabled {
+			log.Fatal("FM_SERVE_V2 requires FM_ENABLED")
+		}
+		activeSP, activeSZ = spV2Handler, szV2Handler
+		slog.Info("set-piece and shot-zone routes served from FotMob v2")
+	}
+
 	scheduler.Start()
 
 	// Sync on startup (all sources, including once-only)
@@ -206,19 +255,32 @@ func main() {
 	r.Get("/health/sync", syncHealthH.Sync)
 
 	// Set-piece detector routes — isolated namespace, not under /api/{game}.
-	if spHandler != nil {
+	if activeSP != nil {
 		r.Route("/api/setpiece", func(r chi.Router) {
-			r.Get("/teams", spHandler.Teams)
-			r.Get("/teams/{understat_team}", spHandler.Team)
+			r.Get("/teams", activeSP.Teams)
+			r.Get("/teams/{understat_team}", activeSP.Team)
 		})
 	}
 
 	// Shot-zone detector routes — isolated namespace, not under /api/{game}.
-	if szHandler != nil {
+	if activeSZ != nil {
 		r.Route("/api/shot-zones", func(r chi.Router) {
-			r.Get("/teams", szHandler.Teams)
-			r.Get("/summary", szHandler.Summary)
-			r.Get("/teams/{team}", szHandler.Team)
+			r.Get("/teams", activeSZ.Teams)
+			r.Get("/summary", activeSZ.Summary)
+			r.Get("/teams/{team}", activeSZ.Team)
+		})
+	}
+
+	// FotMob v2 routes: same shapes as v1, different backing tables.
+	if spV2Handler != nil {
+		r.Route("/api/v2/setpiece", func(r chi.Router) {
+			r.Get("/teams", spV2Handler.Teams)
+			r.Get("/teams/{understat_team}", spV2Handler.Team)
+		})
+		r.Route("/api/v2/shot-zones", func(r chi.Router) {
+			r.Get("/teams", szV2Handler.Teams)
+			r.Get("/summary", szV2Handler.Summary)
+			r.Get("/teams/{team}", szV2Handler.Team)
 		})
 	}
 

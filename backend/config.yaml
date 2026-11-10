@@ -94,3 +94,18 @@ shotzone:
   season: "2026"
   window_matches: 6        # rolling window of a team's most recent matches
   sync_cron: "30 6 * * *"  # daily 06:30, after the set-piece sync
+
+# FotMob v2 of the set-piece and shot-zone feeds (Understat is in maintenance).
+# One match fetch feeds both; own tables (sp2_*, sz2_*), served under
+# /api/v2/setpiece and /api/v2/shot-zones with the same response shapes as v1.
+# Runs alongside v1 until cutover. `serve_v2` is the cutover: when true the
+# existing /api/setpiece and /api/shot-zones routes are backed by v2 (frontend
+# unchanged); false = back to v1 instantly. Requires enabled: true.
+fotmob:
+  enabled: false
+  serve_v2: false
+  season: "2026"                # starting year (2026 = 2026/27)
+  setpiece_window_matches: 6
+  shotzone_window_matches: 6
+  recency_halflife: 1080h
+  sync_cron: "45 6 * * *"       # after the v1 syncs

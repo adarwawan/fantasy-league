@@ -3,6 +3,7 @@ package setpiece
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -13,17 +14,36 @@ import (
 // sp_* tables and never touches players/teams/fixtures (docs §3).
 type Store struct {
 	db *pgxpool.Pool
+	v2 bool
 }
 
 func NewStore(db *pgxpool.Pool) *Store {
 	return &Store{db: db}
 }
 
+// NewStoreV2 targets the FotMob-sourced sp2_* tables (migration 014). The SQL is
+// shared with v1; sql() swaps the table names so both stay in lockstep.
+func NewStoreV2(db *pgxpool.Pool) *Store {
+	return &Store{db: db, v2: true}
+}
+
+var v2Tables = strings.NewReplacer("sp_events", "sp2_events", "sp_board", "sp2_board")
+
+func (s *Store) sql(q string) string {
+	if s.v2 {
+		return v2Tables.Replace(q)
+	}
+	return q
+}
+
 // UpsertEvents idempotently inserts qualifying set-piece shots. The unique key
 // (match_id, role, duty, player_id, minute) makes re-syncing a match a no-op.
 func (s *Store) UpsertEvents(ctx context.Context, events []Event) error {
+	if s.v2 {
+		return s.upsertEventsV2(ctx, events)
+	}
 	for _, e := range events {
-		_, err := s.db.Exec(ctx, `
+		_, err := s.db.Exec(ctx, s.sql(`
 			INSERT INTO sp_events
 				(match_id, season, match_date, minute, understat_team, role, duty, player_id, player_name, is_header, is_goal, xg)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -33,10 +53,35 @@ func (s *Store) UpsertEvents(ctx context.Context, events []Event) error {
 				is_header      = EXCLUDED.is_header,
 				is_goal        = EXCLUDED.is_goal,
 				xg             = EXCLUDED.xg
-		`, e.MatchID, e.Season, e.MatchDate, e.Minute, e.UnderstatTeam,
+		`), e.MatchID, e.Season, e.MatchDate, e.Minute, e.UnderstatTeam,
 			string(e.Role), string(e.Duty), e.PlayerID, e.PlayerName, e.IsHeader, e.IsGoal, e.XG)
 		if err != nil {
 			return fmt.Errorf("upsert sp_event match=%s player=%s: %w", e.MatchID, e.PlayerID, err)
+		}
+	}
+	return nil
+}
+
+// upsertEventsV2 keys on FotMob's per-shot id: unlike v1's
+// (match, role, duty, player, minute), two shots in one minute stay distinct.
+func (s *Store) upsertEventsV2(ctx context.Context, events []Event) error {
+	for _, e := range events {
+		_, err := s.db.Exec(ctx, `
+			INSERT INTO sp2_events
+				(match_id, shot_id, season, match_date, minute, understat_team, role, duty, player_id, player_name, is_header, is_goal, xg)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+			ON CONFLICT (match_id, shot_id) DO UPDATE SET
+				understat_team = EXCLUDED.understat_team,
+				role           = EXCLUDED.role,
+				duty           = EXCLUDED.duty,
+				player_name    = EXCLUDED.player_name,
+				is_header      = EXCLUDED.is_header,
+				is_goal        = EXCLUDED.is_goal,
+				xg             = EXCLUDED.xg
+		`, e.MatchID, e.ShotID, e.Season, e.MatchDate, e.Minute, e.UnderstatTeam,
+			string(e.Role), string(e.Duty), e.PlayerID, e.PlayerName, e.IsHeader, e.IsGoal, e.XG)
+		if err != nil {
+			return fmt.Errorf("upsert sp2_event match=%s shot=%s: %w", e.MatchID, e.ShotID, err)
 		}
 	}
 	return nil
@@ -46,7 +91,7 @@ func (s *Store) UpsertEvents(ctx context.Context, events []Event) error {
 // for a season, so the syncer can skip re-fetching them.
 func (s *Store) ExistingMatchIDs(ctx context.Context, season string) (map[string]bool, error) {
 	rows, err := s.db.Query(ctx,
-		`SELECT DISTINCT match_id FROM sp_events WHERE season = $1`, season)
+		s.sql(`SELECT DISTINCT match_id FROM sp_events WHERE season = $1`), season)
 	if err != nil {
 		return nil, fmt.Errorf("query existing match ids: %w", err)
 	}
@@ -64,13 +109,13 @@ func (s *Store) ExistingMatchIDs(ctx context.Context, season string) (map[string
 
 // ReadEvents returns all events for a season, ordered newest-first.
 func (s *Store) ReadEvents(ctx context.Context, season string) ([]Event, error) {
-	rows, err := s.db.Query(ctx, `
+	rows, err := s.db.Query(ctx, s.sql(`
 		SELECT match_id, season, match_date, minute, understat_team, role, duty,
 		       player_id, player_name, is_header, is_goal, xg
 		FROM sp_events
 		WHERE season = $1
 		ORDER BY match_date DESC
-	`, season)
+	`), season)
 	if err != nil {
 		return nil, fmt.Errorf("read events: %w", err)
 	}
@@ -99,7 +144,7 @@ func (s *Store) ReplaceBoard(ctx context.Context, rows []BoardRow) error {
 	}
 	defer tx.Rollback(ctx)
 
-	if _, err := tx.Exec(ctx, `DELETE FROM sp_board`); err != nil {
+	if _, err := tx.Exec(ctx, s.sql(`DELETE FROM sp_board`)); err != nil {
 		return fmt.Errorf("clear board: %w", err)
 	}
 	now := time.Now().UTC()
@@ -108,12 +153,12 @@ func (s *Store) ReplaceBoard(ctx context.Context, rows []BoardRow) error {
 		if !r.LastSeen.IsZero() {
 			lastSeen = &r.LastSeen
 		}
-		_, err := tx.Exec(ctx, `
+		_, err := tx.Exec(ctx, s.sql(`
 			INSERT INTO sp_board
 				(understat_team, role, duty, player_id, player_name, rank,
 				 weighted_score, raw_count, goals, xg_sum, header_pct, last_seen, updated_at)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-		`, r.UnderstatTeam, string(r.Role), string(r.Duty), r.PlayerID, r.PlayerName,
+		`), r.UnderstatTeam, string(r.Role), string(r.Duty), r.PlayerID, r.PlayerName,
 			r.Rank, r.WeightedScore, r.RawCount, r.Goals, r.XGSum, r.HeaderPct, lastSeen, now)
 		if err != nil {
 			return fmt.Errorf("insert board row: %w", err)
@@ -124,12 +169,12 @@ func (s *Store) ReplaceBoard(ctx context.Context, rows []BoardRow) error {
 
 // ReadBoard returns every board row, ordered for stable grouping in the handler.
 func (s *Store) ReadBoard(ctx context.Context) ([]BoardRow, error) {
-	rows, err := s.db.Query(ctx, `
+	rows, err := s.db.Query(ctx, s.sql(`
 		SELECT understat_team, role, duty, player_id, player_name, rank,
 		       weighted_score, raw_count, goals, xg_sum, header_pct, last_seen
 		FROM sp_board
 		ORDER BY understat_team, role, duty, rank
-	`)
+	`))
 	if err != nil {
 		return nil, fmt.Errorf("read board: %w", err)
 	}
@@ -141,7 +186,7 @@ func (s *Store) ReadBoard(ctx context.Context) ([]BoardRow, error) {
 // timestamp set by ReplaceBoard). Zero time when the board is empty.
 func (s *Store) BoardUpdatedAt(ctx context.Context) (time.Time, error) {
 	var t *time.Time
-	if err := s.db.QueryRow(ctx, `SELECT max(updated_at) FROM sp_board`).Scan(&t); err != nil {
+	if err := s.db.QueryRow(ctx, s.sql(`SELECT max(updated_at) FROM sp_board`)).Scan(&t); err != nil {
 		return time.Time{}, fmt.Errorf("board updated_at: %w", err)
 	}
 	if t == nil {
@@ -152,13 +197,13 @@ func (s *Store) BoardUpdatedAt(ctx context.Context) (time.Time, error) {
 
 // ReadTeamBoard returns board rows for a single team.
 func (s *Store) ReadTeamBoard(ctx context.Context, team string) ([]BoardRow, error) {
-	rows, err := s.db.Query(ctx, `
+	rows, err := s.db.Query(ctx, s.sql(`
 		SELECT understat_team, role, duty, player_id, player_name, rank,
 		       weighted_score, raw_count, goals, xg_sum, header_pct, last_seen
 		FROM sp_board
 		WHERE understat_team = $1
 		ORDER BY role, duty, rank
-	`, team)
+	`), team)
 	if err != nil {
 		return nil, fmt.Errorf("read team board: %w", err)
 	}

@@ -104,6 +104,7 @@ type shot struct {
 // Event.
 type Event struct {
 	MatchID     string
+	ShotID      string // source's per-shot id; set by the FotMob (v2) source only
 	Season      string
 	MatchDate   time.Time
 	Minute      int

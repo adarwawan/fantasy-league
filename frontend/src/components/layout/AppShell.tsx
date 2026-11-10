@@ -8,9 +8,9 @@ import { GWContextBar } from './GWContextBar';
 const NAV_LINKS = [
   { to: 'players', label: 'Players' },
   { to: 'teams',   label: 'Teams'   },
-  // Set pieces is PL-wide and FPL-relevant (Understat-sourced).
+  // Set pieces is PL-wide and FPL-relevant.
   { to: 'set-pieces', label: 'Set Pieces', games: ['fpl'] },
-  // Shot zones is PL-wide and FPL-relevant (Understat-sourced, open-play).
+  // Shot zones is PL-wide and FPL-relevant (open-play).
   { to: 'shot-zones', label: 'Shot Zones', games: ['fpl'] },
   // Stats is FPL-specific (built around the FPL scoring rules).
   { to: 'stats',   label: 'Stats', games: ['fpl'] },

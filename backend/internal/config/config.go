@@ -59,6 +59,15 @@ type Config struct {
 	SZSeason        string
 	SZWindowMatches int
 	SZSyncCron      string
+
+	// FotMob v2 of the set-piece / shot-zone feeds (internal/fotmob).
+	FMEnabled         bool
+	FMServeV2         bool // serve /api/setpiece and /api/shot-zones from v2
+	FMSeason          string
+	FMSPWindowMatches int
+	FMSZWindowMatches int
+	FMRecencyHalfLife time.Duration
+	FMSyncCron        string
 }
 
 type coldConfig struct {
@@ -102,6 +111,15 @@ type coldConfig struct {
 		WindowMatches int    `yaml:"window_matches"`
 		SyncCron      string `yaml:"sync_cron"`
 	} `yaml:"shotzone"`
+	FotMob struct {
+		Enabled         bool   `yaml:"enabled"`
+		ServeV2         bool   `yaml:"serve_v2"`
+		Season          string `yaml:"season"`
+		SPWindowMatches int    `yaml:"setpiece_window_matches"`
+		SZWindowMatches int    `yaml:"shotzone_window_matches"`
+		RecencyHalfLife string `yaml:"recency_halflife"`
+		SyncCron        string `yaml:"sync_cron"`
+	} `yaml:"fotmob"`
 }
 
 // MustHaveConfig holds the thresholds for must-have player detection.
@@ -168,6 +186,12 @@ func loadColdConfig() coldConfig {
 	cc.ShotZone.Season = "2026"
 	cc.ShotZone.WindowMatches = 6
 	cc.ShotZone.SyncCron = "30 6 * * *"
+	cc.FotMob.Enabled = false
+	cc.FotMob.Season = "2026"
+	cc.FotMob.SPWindowMatches = 6
+	cc.FotMob.SZWindowMatches = 6
+	cc.FotMob.RecencyHalfLife = "1080h"
+	cc.FotMob.SyncCron = "45 6 * * *"
 	cc.FPL.MustHave = defaultMustHave()
 	cc.WCF.MustHave = defaultMustHave()
 	cc.FPL.Watchlist = defaultWatchlist()
@@ -246,6 +270,14 @@ func Load() Config {
 		SZSeason:        envStringOr("SZ_SEASON", cc.ShotZone.Season),
 		SZWindowMatches: envIntOr("SZ_WINDOW_MATCHES", cc.ShotZone.WindowMatches),
 		SZSyncCron:      envStringOr("SZ_SYNC_CRON", cc.ShotZone.SyncCron),
+
+		FMEnabled:         envBoolOr("FM_ENABLED", cc.FotMob.Enabled),
+		FMServeV2:         envBoolOr("FM_SERVE_V2", cc.FotMob.ServeV2),
+		FMSeason:          envStringOr("FM_SEASON", cc.FotMob.Season),
+		FMSPWindowMatches: envIntOr("FM_SP_WINDOW_MATCHES", cc.FotMob.SPWindowMatches),
+		FMSZWindowMatches: envIntOr("FM_SZ_WINDOW_MATCHES", cc.FotMob.SZWindowMatches),
+		FMRecencyHalfLife: envDurationOr("FM_RECENCY_HALFLIFE", cc.FotMob.RecencyHalfLife, 1080*time.Hour),
+		FMSyncCron:        envStringOr("FM_SYNC_CRON", cc.FotMob.SyncCron),
 	}
 }
 

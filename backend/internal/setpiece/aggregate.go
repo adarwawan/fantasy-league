@@ -13,6 +13,11 @@ type AggregateConfig struct {
 	// RecencyHalfLife is the half-life (in days, relative to the newest event)
 	// for the exponential recency weight. Zero disables weighting (all 1.0).
 	RecencyHalfLife time.Duration
+	// TeamMatches, when set, is each team's window of real matches (team -> match
+	// ids) and replaces the events-derived window. Without it a team's "matches"
+	// are only those where it had a set-piece shot, so a quiet match shrinks the
+	// window and the board reaches back further than WindowMatches.
+	TeamMatches map[string]map[string]bool
 }
 
 // Aggregate ranks events into board rows per team/role/duty over the rolling
@@ -34,7 +39,7 @@ func Aggregate(events []Event, cfg AggregateConfig) []BoardRow {
 
 	// Trim to the last WindowMatches distinct match dates per team, so a team's
 	// window is measured in its own matches (not calendar time).
-	windowed := trimToWindow(events, cfg.WindowMatches)
+	windowed := trimToWindow(events, cfg.WindowMatches, cfg.TeamMatches)
 
 	// Accumulate per (team, role, duty, player). Target men also feed a synthetic
 	// duty='all' bucket for the league-wide aggregate.
@@ -119,40 +124,59 @@ func Aggregate(events []Event, cfg AggregateConfig) []BoardRow {
 	return rows
 }
 
-// trimToWindow keeps only events from each team's most recent WindowMatches
-// distinct match dates. window <= 0 keeps everything.
-func trimToWindow(events []Event, window int) []Event {
-	if window <= 0 {
-		return events
-	}
-	// Collect distinct match dates per team.
-	teamDates := map[string]map[string]time.Time{}
-	for _, e := range events {
-		m := teamDates[e.UnderstatTeam]
-		if m == nil {
-			m = map[string]time.Time{}
-			teamDates[e.UnderstatTeam] = m
+// trimToWindow keeps only events inside each team's window. With `allowed`
+// (real match lists) that is a plain membership test; otherwise the window is
+// the team's last `window` matches that have events, ordered by (date, match
+// id) so same-day matches can't both straddle the cutoff. window <= 0 keeps
+// everything.
+func trimToWindow(events []Event, window int, allowed map[string]map[string]bool) []Event {
+	if allowed == nil {
+		if window <= 0 {
+			return events
 		}
-		m[e.MatchID] = e.MatchDate
-	}
-	// For each team, find the cutoff = the Nth most recent match date.
-	cutoff := map[string]time.Time{}
-	for team, matches := range teamDates {
-		dates := make([]time.Time, 0, len(matches))
-		for _, d := range matches {
-			dates = append(dates, d)
-		}
-		sort.Slice(dates, func(i, j int) bool { return dates[i].After(dates[j]) })
-		if len(dates) > window {
-			cutoff[team] = dates[window-1]
-		}
+		allowed = eventWindows(events, window)
 	}
 	out := make([]Event, 0, len(events))
 	for _, e := range events {
-		if c, ok := cutoff[e.UnderstatTeam]; ok && e.MatchDate.Before(c) {
-			continue
+		if allowed[e.UnderstatTeam][e.MatchID] {
+			out = append(out, e)
 		}
-		out = append(out, e)
+	}
+	return out
+}
+
+func eventWindows(events []Event, window int) map[string]map[string]bool {
+	type ref struct {
+		id   string
+		date time.Time
+	}
+	seen := map[string]map[string]bool{}
+	byTeam := map[string][]ref{}
+	for _, e := range events {
+		if seen[e.UnderstatTeam] == nil {
+			seen[e.UnderstatTeam] = map[string]bool{}
+		}
+		if !seen[e.UnderstatTeam][e.MatchID] {
+			seen[e.UnderstatTeam][e.MatchID] = true
+			byTeam[e.UnderstatTeam] = append(byTeam[e.UnderstatTeam], ref{e.MatchID, e.MatchDate})
+		}
+	}
+	out := make(map[string]map[string]bool, len(byTeam))
+	for team, refs := range byTeam {
+		sort.Slice(refs, func(i, j int) bool {
+			if !refs[i].date.Equal(refs[j].date) {
+				return refs[i].date.After(refs[j].date)
+			}
+			return refs[i].id > refs[j].id
+		})
+		if len(refs) > window {
+			refs = refs[:window]
+		}
+		set := make(map[string]bool, len(refs))
+		for _, r := range refs {
+			set[r.id] = true
+		}
+		out[team] = set
 	}
 	return out
 }

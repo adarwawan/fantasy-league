@@ -25,7 +25,7 @@ export function SetPiecesPage() {
     <div>
       <PageHeader
         title="Set Pieces"
-        description="Observed from Understat shot data — each team's real penalty / free-kick takers and set-piece target men, independent of FPL's declared order."
+        description="Observed from match shot data — each team's real penalty / free-kick takers and set-piece target men, independent of FPL's declared order."
         meta={data ? `Last ${data.window_matches} matches` : undefined}
       />
 

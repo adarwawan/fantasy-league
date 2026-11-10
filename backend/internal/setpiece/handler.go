@@ -29,6 +29,14 @@ func NewHandler(store *Store, cache Cache, windowMatches int) *Handler {
 	return &Handler{store: store, cache: cache, windowMatches: windowMatches}
 }
 
+// cachePrefix namespaces response caches so v1 and v2 never serve each other.
+func (h *Handler) cachePrefix() string {
+	if h.store.v2 {
+		return "setpiece2:"
+	}
+	return "setpiece:"
+}
+
 // --- response DTOs ---------------------------------------------------------
 
 type takerRow struct {
@@ -96,7 +104,7 @@ type eventRow struct {
 // Teams handles GET /api/setpiece/teams.
 func (h *Handler) Teams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	const cacheKey = "setpiece:teams"
+	cacheKey := h.cachePrefix() + "teams"
 
 	if b := h.cacheGet(ctx, cacheKey); b != nil {
 		writeRaw(w, b)
@@ -151,13 +159,13 @@ func (h *Handler) Team(w http.ResponseWriter, r *http.Request) {
 // recentTeamEvents returns the 20 most recent events for a team from the board's
 // backing table.
 func (h *Handler) recentTeamEvents(ctx context.Context, team string) ([]eventRow, error) {
-	rows, err := h.store.db.Query(ctx, `
+	rows, err := h.store.db.Query(ctx, h.store.sql(`
 		SELECT match_date, minute, role, duty, player_name, is_header, xg
 		FROM sp_events
 		WHERE understat_team = $1
 		ORDER BY match_date DESC, minute DESC
 		LIMIT 20
-	`, team)
+	`), team)
 	if err != nil {
 		return nil, err
 	}

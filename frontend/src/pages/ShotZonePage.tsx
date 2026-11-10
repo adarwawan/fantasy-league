@@ -67,7 +67,7 @@ export function ShotZonePage() {
   const header = (
     <PageHeader
       title="Shot Zones"
-      description="Open play only, observed from Understat shot data — who shoots (and scores) from where, and which teams concede the most from each zone."
+      description="Open play only, observed from match shot data — who shoots (and scores) from where, and which teams concede the most from each zone."
       meta={teamsData ? `Last ${teamsData.window_matches} matches` : undefined}
     />
   );
