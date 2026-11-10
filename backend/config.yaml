@@ -102,7 +102,7 @@ shotzone:
 # existing /api/setpiece and /api/shot-zones routes are backed by v2 (frontend
 # unchanged); false = back to v1 instantly. Requires enabled: true.
 fotmob:
-  enabled: false
+  enabled: true
   serve_v2: false
   season: "2026"                # starting year (2026 = 2026/27)
   setpiece_window_matches: 6
