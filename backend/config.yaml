@@ -103,7 +103,7 @@ shotzone:
 # unchanged); false = back to v1 instantly. Requires enabled: true.
 fotmob:
   enabled: true
-  serve_v2: false
+  serve_v2: true
   season: "2026"                # starting year (2026 = 2026/27)
   setpiece_window_matches: 6
   shotzone_window_matches: 6
