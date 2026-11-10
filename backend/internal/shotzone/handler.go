@@ -21,6 +21,14 @@ type Handler struct {
 	windowMatches int
 }
 
+// cachePrefix namespaces response caches so v1 and v2 never serve each other.
+func (h *Handler) cachePrefix() string {
+	if h.store.v2 {
+		return "shotzone2:"
+	}
+	return "shotzone:"
+}
+
 func NewHandler(store *Store, cache Cache, windowMatches int) *Handler {
 	return &Handler{store: store, cache: cache, windowMatches: windowMatches}
 }
@@ -81,7 +89,7 @@ type teamDetail struct {
 // Teams handles GET /api/shot-zones/teams.
 func (h *Handler) Teams(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	const cacheKey = "shotzone:teams"
+	cacheKey := h.cachePrefix() + "teams"
 
 	if b := h.cacheGet(ctx, cacheKey); b != nil {
 		writeRaw(w, b)
@@ -124,7 +132,7 @@ type summaryResponse struct {
 // taken and conceded in one response.
 func (h *Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	const cacheKey = "shotzone:summary"
+	cacheKey := h.cachePrefix() + "summary"
 
 	if b := h.cacheGet(ctx, cacheKey); b != nil {
 		writeRaw(w, b)

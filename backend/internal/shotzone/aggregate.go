@@ -102,42 +102,67 @@ func AggregateConceded(events []Event, windowMatches int) []ConcededRow {
 	return rows
 }
 
-// trimToWindow keeps only events from each key's (as extracted by teamOf)
-// most recent `window` distinct match dates. window <= 0 keeps everything.
-// Taken and conceded aggregation call this with different teamOf functions,
-// so each side's rolling window is measured in its own matches.
-func trimToWindow(events []Event, window int, teamOf func(Event) string) []Event {
+// TeamWindows returns, per team, the ids of its most recent `window` matches
+// (both sides of every match count, so a team's window is its real fixture
+// list, not just matches where it produced events). Matches are ordered by
+// (date, match id) so two same-day matches can't both straddle the cutoff.
+// window <= 0 returns nil (no windowing).
+func TeamWindows(events []Event, window int) map[string]map[string]bool {
 	if window <= 0 {
-		return events
+		return nil
 	}
-	teamDates := map[string]map[string]time.Time{}
+	type ref struct {
+		id   string
+		date time.Time
+	}
+	seen := map[string]map[string]bool{}
+	byTeam := map[string][]ref{}
+	note := func(team string, e Event) {
+		if seen[team] == nil {
+			seen[team] = map[string]bool{}
+		}
+		if !seen[team][e.MatchID] {
+			seen[team][e.MatchID] = true
+			byTeam[team] = append(byTeam[team], ref{e.MatchID, e.MatchDate})
+		}
+	}
 	for _, e := range events {
-		team := teamOf(e)
-		m := teamDates[team]
-		if m == nil {
-			m = map[string]time.Time{}
-			teamDates[team] = m
-		}
-		m[e.MatchID] = e.MatchDate
+		note(e.TeamFor, e)
+		note(e.TeamAgainst, e)
 	}
-	cutoff := map[string]time.Time{}
-	for team, matches := range teamDates {
-		dates := make([]time.Time, 0, len(matches))
-		for _, d := range matches {
-			dates = append(dates, d)
+	out := make(map[string]map[string]bool, len(byTeam))
+	for team, refs := range byTeam {
+		sort.Slice(refs, func(i, j int) bool {
+			if !refs[i].date.Equal(refs[j].date) {
+				return refs[i].date.After(refs[j].date)
+			}
+			return refs[i].id > refs[j].id
+		})
+		if len(refs) > window {
+			refs = refs[:window]
 		}
-		sort.Slice(dates, func(i, j int) bool { return dates[i].After(dates[j]) })
-		if len(dates) > window {
-			cutoff[team] = dates[window-1]
+		set := make(map[string]bool, len(refs))
+		for _, r := range refs {
+			set[r.id] = true
 		}
+		out[team] = set
+	}
+	return out
+}
+
+// trimToWindow keeps only events whose match is in the key's (as extracted by
+// teamOf) window. Taken and conceded aggregation call this with different
+// teamOf functions, so each side's rolling window is measured in its own matches.
+func trimToWindow(events []Event, window int, teamOf func(Event) string) []Event {
+	windows := TeamWindows(events, window)
+	if windows == nil {
+		return events
 	}
 	out := make([]Event, 0, len(events))
 	for _, e := range events {
-		team := teamOf(e)
-		if c, ok := cutoff[team]; ok && e.MatchDate.Before(c) {
-			continue
+		if windows[teamOf(e)][e.MatchID] {
+			out = append(out, e)
 		}
-		out = append(out, e)
 	}
 	return out
 }

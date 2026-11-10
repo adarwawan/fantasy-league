@@ -100,6 +100,7 @@ type shot struct {
 // One shot yields at most one Event (it matches exactly one role/duty).
 type Event struct {
 	MatchID       string
+	ShotID        string // source's per-shot id; set by the FotMob (v2) source only
 	Season        string
 	MatchDate     time.Time
 	Minute        int

@@ -8,6 +8,19 @@
       "cwd": "frontend",
       "port": 5173,
       "autoPort": true
+    },
+    {
+      "name": "frontend-alt-backend",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd frontend && VITE_API_PROXY=http://localhost:8081 exec npm run dev"],
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd backend && FM_ENABLED=true FM_SERVE_V2=true DATABASE_URL='postgres://fantasy:fantasy@localhost:5432/fantasy?sslmode=disable' REDIS_URL='redis://localhost:6379' exec go run ./cmd/server"],
+      "port": 8080
     }
   ]
 }

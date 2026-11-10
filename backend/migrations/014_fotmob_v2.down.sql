@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS sz2_conceded_board;
+DROP TABLE IF EXISTS sz2_taken_board;
+DROP TABLE IF EXISTS sz2_events;
+DROP TABLE IF EXISTS sp2_board;
+DROP TABLE IF EXISTS sp2_events;
