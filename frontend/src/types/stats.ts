@@ -56,3 +56,23 @@ export interface TeamICTResponse {
   teams: TeamICTEntry[];
   meta:  StatsMeta;
 }
+
+export interface TeamBonusPlayer {
+  id:       string;
+  name:     string;
+  position: 'GK' | 'DEF' | 'MID' | 'FWD';
+  bonus:    number;
+}
+
+export interface TeamBonusEntry {
+  team:        string; // short name, e.g. "ARS"
+  matches:     number; // finished fixtures in the window
+  bonus:       number;
+  by_position: Record<'GK' | 'DEF' | 'MID' | 'FWD', number>;
+  top:         TeamBonusPlayer[]; // up to 3, bonus descending
+}
+
+export interface TeamBonusResponse {
+  teams: TeamBonusEntry[];
+  meta:  StatsMeta;
+}

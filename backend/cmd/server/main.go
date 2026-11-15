@@ -302,6 +302,7 @@ func main() {
 		r.Get("/players", playersH.List)
 		r.Get("/stats", statsH.List)
 		r.Get("/stats/teams", statsH.Teams)
+		r.Get("/stats/bonus", statsH.Bonus)
 		r.Get("/teams", teamsH.List)
 		r.Get("/fixtures", teamsH.Fixtures)
 		r.Get("/fixtures/odds", oddsH.List)

@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useStats, useTeamICT } from '../hooks/useStats';
+import { useStats, useTeamBonus, useTeamICT } from '../hooks/useStats';
 import { StatCard } from '../components/stats/StatCard';
 import { TeamICTCard } from '../components/stats/TeamICTCard';
+import { TeamBonusCard, BONUS_POS_COLOR } from '../components/stats/TeamBonusCard';
+import { TeamBonusChart } from '../components/stats/TeamBonusChart';
+import { sortByBonusRate } from '../utils/bonus';
 import { QueryBoundary } from '../components/ui/QueryBoundary';
 import { CardGridSkeleton } from '../components/ui/Skeletons';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
@@ -10,7 +13,7 @@ import { SectionHeading } from '../components/ui/SectionHeading';
 import { PageHeader } from '../components/layout/PageHeader';
 import { usePageTitle } from '../hooks/usePageTitle';
 
-type StatsView = 'position' | 'team';
+type StatsView = 'position' | 'team' | 'bonus';
 
 const ictLegend = [
   { label: 'Influence',  dot: 'bg-emerald-400' },
@@ -26,8 +29,10 @@ export function StatsPage() {
 
   usePageTitle('Stats');
 
-  const active = view === 'position' ? stats : teamICT;
-  const window = stats.data?.meta.window ?? teamICT.data?.meta.window;
+  const teamBonus = useTeamBonus(game, view === 'bonus');
+
+  const active = view === 'position' ? stats : view === 'team' ? teamICT : teamBonus;
+  const window = stats.data?.meta.window ?? teamICT.data?.meta.window ?? teamBonus.data?.meta.window;
 
   return (
     <div>
@@ -37,7 +42,7 @@ export function StatsPage() {
         meta={window != null ? `Last ${window} gameweeks` : undefined}
       />
 
-      <div className="flex items-center justify-between gap-2 mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-3 mb-4">
         <SegmentedControl
           label="Stats view"
           value={view}
@@ -45,8 +50,20 @@ export function StatsPage() {
           options={[
             { value: 'position', label: 'Points Leaders' },
             { value: 'team', label: 'Team ICT Share' },
+            { value: 'bonus', label: 'Team Bonus' },
           ]}
         />
+
+        {view === 'bonus' && (
+          <div className="flex items-center gap-3">
+            {(Object.keys(BONUS_POS_COLOR) as (keyof typeof BONUS_POS_COLOR)[]).map((p) => (
+              <span key={p} className="flex items-center gap-1 text-[11px] text-slate-400">
+                <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: BONUS_POS_COLOR[p] }} />
+                {p}
+              </span>
+            ))}
+          </div>
+        )}
 
         {view === 'team' && (
           <div className="flex items-center gap-3">
@@ -80,7 +97,16 @@ export function StatsPage() {
               </section>
             ))}
           </div>
-        ) : teamICT.data ? (
+        ) : view === 'bonus' && teamBonus.data ? (
+          <div className="space-y-4">
+            <TeamBonusChart teams={teamBonus.data.teams} />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {sortByBonusRate(teamBonus.data.teams).map((entry) => (
+                <TeamBonusCard key={entry.team} entry={entry} />
+              ))}
+            </div>
+          </div>
+        ) : view === 'team' && teamICT.data ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {teamICT.data.teams.map((entry) => (
               <TeamICTCard key={entry.team} entry={entry} />

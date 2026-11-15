@@ -448,6 +448,42 @@ func (s *Store) QueryRecentPlayerStatLines(ctx context.Context, gameID string, w
 	return out, rows.Err()
 }
 
+// QueryRecentTeamMatches returns, per team short name, how many finished
+// fixtures it played in the last `window` finished gameweeks. It is the
+// denominator for per-match rates: counting fixtures (not gameweeks) keeps
+// double gameweeks correct and blank gameweeks from diluting a club's rate.
+func (s *Store) QueryRecentTeamMatches(ctx context.Context, gameID string, window int) (map[string]int, error) {
+	rows, err := s.db.Query(ctx, `
+		WITH recent AS (
+			SELECT DISTINCT gw FROM fixtures
+			WHERE game_id = $1 AND finished
+			ORDER BY gw DESC
+			LIMIT $2
+		)
+		SELECT t.short_name, COUNT(*)
+		FROM fixtures f
+		JOIN recent r ON r.gw = f.gw
+		JOIN teams t ON t.id = f.home_team_id OR t.id = f.away_team_id
+		WHERE f.game_id = $1 AND f.finished
+		GROUP BY t.short_name
+	`, gameID, window)
+	if err != nil {
+		return nil, fmt.Errorf("query recent team matches: %w", err)
+	}
+	defer rows.Close()
+
+	out := make(map[string]int)
+	for rows.Next() {
+		var team string
+		var n int
+		if err := rows.Scan(&team, &n); err != nil {
+			return nil, fmt.Errorf("scan team matches: %w", err)
+		}
+		out[team] = n
+	}
+	return out, rows.Err()
+}
+
 // QueryTeams returns all teams for a game with fixtures over the next N
 // gameweeks joined (the fixed GW range [next_gw, next_gw+window-1]), xG and CS%
 // pulled from match_odds, and aggregate xg_sum / cs_avg over that range.
