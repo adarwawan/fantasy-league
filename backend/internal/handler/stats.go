@@ -20,6 +20,7 @@ const statsLeaderLimit = 5
 
 type statsStore interface {
 	QueryRecentPlayerStatLines(ctx context.Context, gameID string, window int) ([]store.PlayerStatGW, error)
+	QueryRecentTeamMatches(ctx context.Context, gameID string, window int) (map[string]int, error)
 	CurrentGW(ctx context.Context, gameID string) (int, error)
 }
 
@@ -43,9 +44,10 @@ type statLeader struct {
 // return 0. Pure function so the scoring rule is unit-testable.
 //
 // Point values (https://fantasy.premierleague.com/help/rules):
-//   goals       — GK/DEF 6, MID 5, FWD 4
-//   assists     — 3 for all positions
-//   clean sheet — GK/DEF 4, MID 1, FWD 0
+//
+//	goals       — GK/DEF 6, MID 5, FWD 4
+//	assists     — 3 for all positions
+//	clean sheet — GK/DEF 4, MID 1, FWD 0
 func componentPoints(position, component string, count int) int {
 	switch component {
 	case "goals":
