@@ -135,7 +135,10 @@ export const PlayerRow = forwardRef<HTMLTableRowElement, PlayerRowProps>(functio
       {/* Next 5 GWs' fixture chips (backend windows by gameweek, so a double
           gameweek may yield more than 5 fixtures) */}
       <td className="px-3 py-2">
-        <div className="flex gap-1 flex-wrap">
+        {/* No wrap: the table is auto-layout, so a wrappable cell lets the
+            browser squeeze this column and change row heights/column widths
+            with viewport size. The table wrapper scrolls horizontally instead. */}
+        <div className="flex gap-1 flex-nowrap min-w-max">
           {player.fixtures.map((f, i) => (
               <FixtureChip
                 key={i}
